@@ -1,0 +1,11 @@
+.git
+.worktrees
+.venv
+data
+frontend/node_modules
+frontend/dist
+frontend/.playwright-browsers
+frontend/test-results
+__pycache__
+*.pyc
+.env
