@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from .api.routes import auth, imports, reports
+from .api.routes import auth, imports, reports, hr
 from .config import Settings
 from .container import build_container
 from .domain.errors import ServiceError
@@ -33,7 +33,7 @@ def create_app(settings: Settings | None = None, repository: Repository | None =
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'"
         return response
 
-    for router in (auth.router, imports.router, reports.router):
+    for router in (auth.router, imports.router, reports.router, hr.router):
         app.include_router(router)
 
     @app.get('/api/health')

@@ -8,7 +8,6 @@ from .services.reports import ReportService
 from .services.ports import Repository
 from .hr.repository import HrRepository
 from .hr.service import HrService
-from sqlalchemy import create_engine
 
 @dataclass
 class Container:
@@ -23,5 +22,5 @@ def build_container(settings: Settings, repository: Repository | None = None) ->
     repo = repository if repository is not None else FileRepository(settings.data_dir)
     hr_service = None
     if settings.database_url:
-        hr_service = HrService(HrRepository(create_engine(settings.database_url)))
+        hr_service = HrService(HrRepository(settings.database_url))
     return Container(settings, repo, AuthService(repo, settings.session_seconds), ImportService(repo, hr_service), ReportService(repo), hr_service)

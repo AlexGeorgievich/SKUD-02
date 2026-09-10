@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from .models import HrAuditLog, HrEmployee, HrPlanSync
 
@@ -13,7 +14,13 @@ SAFE_FIELDS = {
 
 class HrRepository:
     def __init__(self, engine_or_url):
-        self.engine = create_engine(engine_or_url) if isinstance(engine_or_url, str) else engine_or_url
+        if isinstance(engine_or_url, str):
+            kwargs = {}
+            if engine_or_url.startswith("sqlite") and ":memory:" in engine_or_url:
+                kwargs = {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
+            self.engine = create_engine(engine_or_url, **kwargs)
+        else:
+            self.engine = engine_or_url
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
 
     def upsert_plan_employee(self, plan_id: str, name: str, department: str, period: str) -> HrEmployee:
@@ -34,6 +41,10 @@ class HrRepository:
     def get_employee(self, employee_id: str) -> HrEmployee | None:
         with self.sessions() as session:
             return session.get(HrEmployee, employee_id) or session.scalar(select(HrEmployee).where(HrEmployee.plan_employee_id == employee_id))
+
+    def list_employees(self) -> list[HrEmployee]:
+        with self.sessions() as session:
+            return list(session.scalars(select(HrEmployee).order_by(HrEmployee.plan_department, HrEmployee.plan_name)).all())
 
     def update_safe_fields(self, employee_id: str, values: dict) -> HrEmployee:
         invalid = set(values) - SAFE_FIELDS
