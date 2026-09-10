@@ -11,3 +11,4 @@ frontend/.playwright-browsers/
 frontend/test-results/
 demo/~$*.xlsx
 *.zip
+.worktrees/
