@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-timetrack}
+      POSTGRES_USER: ${POSTGRES_USER:-timetrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+    volumes:
+      - timetrack_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    env_file: .env
+    command: ["alembic", "-c", "backend/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  timetrack_postgres_data: {}

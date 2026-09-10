@@ -13,3 +13,5 @@ class Settings:
     allowed_origins: tuple[str, ...] = ('http://localhost:8000', 'http://127.0.0.1:8000')
     upload_limit: int = 20 * 1024 * 1024
     session_seconds: int = 28800
+    database_url: str = field(default_factory=lambda: os.environ.get('DATABASE_URL', ''))
+    database_required: bool = field(default_factory=lambda: os.environ.get('DATABASE_REQUIRED') == '1')
