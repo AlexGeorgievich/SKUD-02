@@ -50,3 +50,9 @@ class HrRepository:
     def add_audit(self, author: str, action: str, object_type: str, object_id: str, changed_fields: dict | None, source: str) -> None:
         with self.sessions.begin() as session:
             session.add(HrAuditLog(author=author, action=action, object_type=object_type, object_id=object_id, changed_fields=changed_fields, source=source))
+
+    def mark_not_in_plan(self, plan_ids: set[str]) -> None:
+        with self.sessions.begin() as session:
+            employees = session.scalars(select(HrEmployee)).all()
+            for employee in employees:
+                employee.in_current_plan = employee.plan_employee_id in plan_ids
