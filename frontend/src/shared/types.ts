@@ -5,7 +5,7 @@ export interface Day {id:string; department:string; date:string; plan:string; ra
 export interface Dataset {period:string; asof:string; employees:Employee[]; days:Day[]; unmatched:{id:string; reason:string}[]}
 export interface Preview {plan_count:number; fact_count:number; plan:PreviewRow[]; fact:PreviewRow[]}
 export interface PreviewRow {name:string; department:string; values:(string|number|null)[]}
-export const VIEWS = ['План','Факт','План-факт','Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI','Загрузка Excel','Журнал действий'] as const;
+export const VIEWS = ['План','Факт','План-факт','Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI','Загрузка Excel','Журнал действий','Кадровый учёт'] as const;
 export type View = typeof VIEWS[number];
 export const CODES = ['О','Д','Отп','Б','От','Вых'];
 export const STATUS_LABELS:Record<string,string>={О:'Офис',Д:'Дистанционно',Отп:'Отпуск',Б:'Больничный',От:'Отгул',Вых:'Выходной'};

@@ -9,9 +9,10 @@ import {Dashboard} from '../features/analytics/Dashboard';
 import {BiDashboard} from '../features/analytics/BiDashboard';
 import {Records} from '../features/records/Records';
 import {Audit} from '../features/audit/Audit';
+import {HrPage} from '../features/hr/HrPage';
 const PRIMARY_VIEWS:View[]=['План','Факт','План-факт'];
 const ANALYTIC_VIEWS:View[]=['Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI'];
-const SERVICE_VIEWS:View[]=['Загрузка Excel','Журнал действий'];
+const SERVICE_VIEWS:View[]=['Загрузка Excel','Журнал действий','Кадровый учёт'];
 export function Workspace({user,onLogout}:{user:User;onLogout:()=>void}){
  const [data,setData]=useState<Dataset|null>(null),[loading,setLoading]=useState(true),[view,setView]=useState<View>('Загрузка Excel');
  const [period,setPeriod]=useState('2026-08'),[department,setDepartment]=useState(''),[search,setSearch]=useState(''),[notice,setNotice]=useState('');
@@ -55,6 +56,7 @@ export function Workspace({user,onLogout}:{user:User;onLogout:()=>void}){
  <main>{notice&&<div id="notice" role="status">{notice}</div>}<div className="pagehead"><div><p className="eyebrow">УЧЁТ РАБОЧЕГО ВРЕМЕНИ</p><h2>{view}</h2><p>{data?`Загруженный период: ${data.period} · Дата анализа: ${data.asof}`:'Загрузите план и факт за один календарный месяц.'}</p></div><div className="actions"><button disabled={loading||view==='Загрузка Excel'} onClick={print}>Печать</button><button disabled={!data||downloading||busy||view==='Журнал действий'} className="primary" onClick={()=>exportReport(['План-факт','За месяц','Проверка данных','По дням'].includes(view)?view:'all')}>{downloading?'Формируем Excel…':'Экспорт Excel'}</button><button disabled={!data||downloading||busy||view==='Журнал действий'} onClick={()=>exportReport('all','',true)}>Без ФИ</button></div></div>
  {view==='Загрузка Excel'?<Upload key={period} period={period} notify={notify} canImport={WRITERS.includes(user.role)} setImportBusy={setBusy} onComplete={async()=>{await refresh();setView('Дашборд')}}/>:
  view==='Журнал действий'?<Audit notify={notify} printing={printing}/>:
+ view==='Кадровый учёт'?<HrPage role={user.role} notify={notify}/>:
  loading?<div className="card" role="status">Загружаем последний результат…</div>:
  !data?<div className="card empty">Нет обработанного набора. Откройте «Загрузка Excel».</div>:
  <><div className="card toolbar"><input aria-label="Поиск сотрудника" placeholder="Поиск по фамилии и имени" value={search} onChange={e=>setSearch(e.target.value)}/><small>{employees.length} сотрудников · Экспорт учитывает отдел и поиск</small></div>
