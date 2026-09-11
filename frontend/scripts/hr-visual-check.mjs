@@ -1,0 +1,22 @@
+import {mkdir} from 'node:fs/promises';
+import {chromium} from '@playwright/test';
+
+const password=process.env.TIMETRACK_TEST_PASSWORD;
+if(!password)throw new Error('Set TIMETRACK_TEST_PASSWORD for the local preview account');
+const output='test-results/hr-visual';
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const page=await browser.newPage({viewport:{width:1600,height:1000},deviceScaleFactor:1});
+await page.goto('http://127.0.0.1:8001/',{waitUntil:'networkidle'});
+await page.getByLabel('Пароль').fill(password);
+await page.getByRole('button',{name:'Войти в систему →'}).click();
+await page.getByRole('button',{name:'Кадровый учёт'}).click();
+await page.getByRole('heading',{name:'HR Персонал'}).waitFor();
+await page.locator('.hr-person').first().waitFor();
+await page.screenshot({path:`${output}/registry.png`,fullPage:true});
+await page.locator('.hr-person').first().click();
+await page.getByRole('dialog',{name:/Карточка сотрудника/}).waitFor();
+await page.screenshot({path:`${output}/employee-card.png`,fullPage:true});
+const registry={viewport:page.viewportSize(),card:await page.locator('.hr-employee-modal').boundingBox(),photo:await page.locator('.hr-avatar.photo').boundingBox()};
+console.log(JSON.stringify(registry));
+await browser.close();

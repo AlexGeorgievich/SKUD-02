@@ -63,6 +63,36 @@ it('показывает отказ входа без открытия рабо�
  const login=vi.fn();render(<Login onLogin={login}/>);const user=userEvent.setup();await user.type(screen.getByLabelText('Пароль'),'bad-password');await user.click(screen.getByText('Войти в систему →'));await screen.findByRole('alert');expect(screen.getByRole('alert').textContent).toBe('Неверный логин или пароль');expect(login).not.toHaveBeenCalled();
 });
 
+describe('Кадровое рабочее место',()=>{
+ const employee={id:'hr-1',plan_name:'Беляев Харлампий',plan_department:'Accounting Offline',office:null,department:'Accounting Offline',department_status:null,gender:null,birth_year:null,position:null,hire_date:null,work_schedule:null,employment_status:'active'};
+ function renderHr(role:'admin'|'hr'|'timekeeper'='hr'){
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}})));
+  return render(<HrPage role={role} notify={vi.fn()}/>);
+ }
+ it('показывает компактный реестр с поиском и кадровыми фильтрами',async()=>{
+  renderHr();await screen.findByText('Беляев Харлампий');
+  expect(screen.getByRole('heading',{name:'HR Персонал'})).toBeTruthy();
+  expect(screen.getByLabelText('Поиск сотрудников')).toBeTruthy();
+  expect(screen.getByLabelText('Фильтр по отделу')).toBeTruthy();
+  expect(screen.getByLabelText('Фильтр по статусу')).toBeTruthy();
+  expect(screen.getByText('Найдено: 1')).toBeTruthy();
+ });
+ it('открывает широкую карточку с вкладками и компактным фото',async()=>{
+  renderHr();await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});
+  expect(within(dialog).getByRole('tab',{name:'Личные данные'})).toBeTruthy();
+  expect(within(dialog).getByRole('tab',{name:'Рабочие данные'})).toBeTruthy();
+  expect(within(dialog).getByRole('tab',{name:'СКУД и доступ'})).toBeTruthy();
+  expect(within(dialog).getByLabelText('Фото сотрудника')).toBeTruthy();
+  expect(within(dialog).getByRole('button',{name:'Сохранить'})).toBeTruthy();
+ });
+ it('открывает карточку TimeTrack только для просмотра',async()=>{
+  renderHr('timekeeper');await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  expect(screen.getByText(/Только просмотр/)).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'Сохранить'})).toBeNull();
+ });
+});
+
 const workspaceData:Dataset={
  period:'2026-08',asof:'2026-08-31',unmatched:[],days:[
   {id:'1',department:'HR',date:'2026-08-01',plan:'О',raw:'09:00\n18:00',result:'Без замечаний',problem:false,arrival:'09:00',departure:'18:00',minutes:540,registered:true,issue:''},
@@ -92,6 +122,14 @@ describe('Рабочее пространство',()=>{
  it('показывает три верхних пункта общего GUI для admin',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
   expect(screen.getAllByRole('group').map(group=>group.getAttribute('aria-label'))).toEqual(['Кадровый учёт','Учёт рабочего времени','Администрирование']);
+ });
+ it('не дублирует шапку TimeTrack внутри кадрового модуля',async()=>{
+  renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({items:[],count:0}),{status:200,headers:{'Content-Type':'application/json'}})));
+  await userEvent.click(screen.getByRole('button',{name:'Кадровый учёт'}));
+  expect(screen.getByRole('heading',{name:'HR Персонал'})).toBeTruthy();
+  expect(screen.queryByRole('heading',{name:'Кадровый учёт'})).toBeNull();
+  expect(screen.queryByLabelText('Дата-Месяц')).toBeNull();
  });
  it('использует структуру Офис — Отдел — Сотрудник и показывает весь список отделов',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');expect(screen.getByLabelText('Отдел')).toBeTruthy();expect(screen.getByRole('option',{name:'Все отделы'})).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Дашборд'}));

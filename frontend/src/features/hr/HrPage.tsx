@@ -1,160 +1,78 @@
 import {useEffect, useMemo, useState} from 'react';
-
 import {api, ApiError, errorText} from '../../shared/api/client';
 import type {Role} from '../../shared/types';
 import {HrOfficeStructure} from './HrOfficeStructure';
 
 type Employee = {
-  id: string;
-  plan_name: string;
-  plan_department: string;
-  office?: string | null;
-  department?: string | null;
-  department_status?: string | null;
-  gender?: string | null;
-  birth_year?: number | null;
-  position?: string | null;
-  hire_date?: string | null;
-  work_schedule?: string | null;
-  department_head_id?: string | null;
-  deputy_id?: string | null;
-  deputy_from?: string | null;
-  deputy_until?: string | null;
-  employment_status?: string | null;
+  id:string; plan_name:string; plan_department:string; office?:string|null; department?:string|null;
+  department_status?:string|null; gender?:string|null; birth_year?:number|null; position?:string|null;
+  hire_date?:string|null; work_schedule?:string|null; department_head_id?:string|null; deputy_id?:string|null;
+  deputy_from?:string|null; deputy_until?:string|null; employment_status?:string|null; personnel_number?:string|null;
+  work_email?:string|null; work_phone?:string|null; access_card_number?:string|null; access_card_status?:string|null;
+  access_level?:string|null;
 };
+type Tab = 'personal'|'work'|'schedule'|'access';
+const EDITORS:Role[]=['admin','hr'];
+const EMPTY='—';
+const DEPARTMENT_STATUSES=['Сотрудник','Руководитель отдела','Заместитель руководителя','Временно исполняющий обязанности'];
+const TABS:[Tab,string][]=[['personal','Личные данные'],['work','Рабочие данные'],['schedule','Распорядок'],['access','СКУД и доступ']];
 
-const EDITORS: Role[] = ['admin', 'hr'];
-const EMPTY = 'Не заполнено';
-const DEPARTMENT_STATUSES = ['Сотрудник', 'Руководитель отдела', 'Заместитель руководителя', 'Временно исполняющий обязанности'];
-
-function cardDraft(employee: Employee) {
-  return {
-    office: employee.office || '', department: employee.department || employee.plan_department,
-    department_status: employee.department_status || 'Сотрудник', gender: employee.gender || 'Не указан',
-    birth_year: employee.birth_year ? String(employee.birth_year) : '', hire_date: employee.hire_date || '',
-    work_schedule: employee.work_schedule || '', position: employee.position || '',
-    department_head_id: employee.department_head_id || '', deputy_id: employee.deputy_id || '',
-    deputy_from: employee.deputy_from || '', deputy_until: employee.deputy_until || '',
-    employment_status: employee.employment_status || 'active',
-  };
+function draftFrom(employee:Employee):Record<string,string>{
+ return Object.fromEntries(['office','department','department_status','gender','birth_year','position','hire_date','work_schedule','department_head_id','deputy_id','deputy_from','deputy_until','employment_status','personnel_number','work_email','work_phone','access_card_number','access_card_status','access_level'].map(key=>[key,String(employee[key as keyof Employee]??'')]))
 }
+function initials(name:string){return name.split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()}
+function Field({label,children}:{label:string;children:React.ReactNode}){return <label><span>{label}</span>{children}</label>}
 
-export function HrPage({role, notify}: {role: Role; notify: (message: string) => void}) {
-  const [items, setItems] = useState<Employee[]>([]);
-  const [selected, setSelected] = useState<Employee | null>(null);
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
+ const [items,setItems]=useState<Employee[]>([]),[selected,setSelected]=useState<Employee|null>(null);
+ const [draft,setDraft]=useState<Record<string,string>>({}),[tab,setTab]=useState<Tab>('personal');
+ const [query,setQuery]=useState(''),[departmentFilter,setDepartmentFilter]=useState(''),[statusFilter,setStatusFilter]=useState('');
+ const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+ const canEdit=EDITORS.includes(role);
+ const load=()=>{setLoading(true);api<{items:Employee[]}>('/api/hr/employees').then(r=>setItems(r.items)).catch(e=>{if(!(e instanceof ApiError&&e.status===503))notify(errorText(e))}).finally(()=>setLoading(false))};
+ useEffect(load,[]);
+ useEffect(()=>{const handler=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelected(null)};window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler)},[]);
+ const departments=useMemo(()=>Object.entries(items.reduce<Record<string,number>>((result,employee)=>{const department=employee.department||employee.plan_department;result[department]=(result[department]||0)+1;return result},{})).sort((a,b)=>b[1]-a[1]) as [string,number][],[items]);
+ const filtered=useMemo(()=>items.filter(employee=>{
+  const department=employee.department||employee.plan_department;
+  const text=`${employee.plan_name} ${department} ${employee.position||''} ${employee.personnel_number||''}`.toLowerCase();
+  return text.includes(query.trim().toLowerCase())&&(!departmentFilter||department===departmentFilter)&&(!statusFilter||(employee.employment_status||'active')===statusFilter)
+ }),[items,query,departmentFilter,statusFilter]);
+ const set=(key:string,value:string)=>setDraft(current=>({...current,[key]:value}));
+ const openCard=(employee:Employee)=>{setSelected(employee);setDraft(draftFrom(employee));setTab('personal')};
+ const saveCard=async()=>{
+  if(!selected||!canEdit)return;
+  const payload=Object.fromEntries(Object.entries(draft).map(([key,value])=>[key,value===''?null:key==='birth_year'?Number(value):value]));
+  setSaving(true);
+  try{const updated=await api<Employee>(`/api/hr/employees/${selected.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});setItems(current=>current.map(employee=>employee.id===updated.id?updated:employee));setSelected(updated);setDraft(draftFrom(updated));notify('Карточка сотрудника сохранена')}
+  catch(error){notify(errorText(error))}finally{setSaving(false)}
+ };
+ const input=(key:string,type='text',placeholder='')=><input type={type} placeholder={placeholder} value={draft[key]||''} disabled={!canEdit} onChange={event=>set(key,event.target.value)}/>;
+ const employeeOptions=(exclude:string)=>items.filter(employee=>employee.id!==exclude).map(employee=><option key={employee.id} value={employee.id}>{employee.plan_name}</option>);
 
-  const load = () => {
-    setLoading(true);
-    api<{items: Employee[]}>('/api/hr/employees')
-      .then((response) => setItems(response.items))
-      .catch((error) => {
-        if (!(error instanceof ApiError && error.status === 503)) notify(errorText(error));
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(load, []);
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelected(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, []);
-
-  const filtered = useMemo(() => items.filter((employee) =>
-    `${employee.plan_name} ${employee.department || employee.plan_department} ${employee.position || ''}`
-      .toLowerCase().includes(query.toLowerCase())), [items, query]);
-  const departments = useMemo(() => Object.entries(items.reduce<Record<string, number>>((result, employee) => {
-    const department = employee.department || employee.plan_department;
-    result[department] = (result[department] || 0) + 1;
-    return result;
-  }, {})).sort((left, right) => right[1] - left[1]) as [string, number][], [items]);
-
-  const openCard = (employee: Employee) => {
-    setSelected(employee);
-    setDraft(cardDraft(employee));
-  };
-  const saveCard = async () => {
-    if (!selected || !EDITORS.includes(role)) return;
-    const payload = {...draft, birth_year: draft.birth_year ? Number(draft.birth_year) : null};
-    setSaving(true);
-    try {
-      const updated = await api<Employee>(`/api/hr/employees/${selected.id}`, {
-        method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
-      });
-      setItems((current) => current.map((employee) => employee.id === updated.id ? updated : employee));
-      setSelected(updated);
-      setDraft(cardDraft(updated));
-      notify('Карточка сотрудника сохранена');
-    } catch (error) {
-      notify(errorText(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return <section className="card hr-page">
-    <div className="pagehead">
-      <div>
-        <p className="eyebrow">КАДРОВЫЙ УЧЁТ</p>
-        <h2>Реестр сотрудников</h2>
-        <p>Первичный источник ФИО и отдела — «План».</p>
-      </div>
-      <button onClick={load}>Обновить</button>
+ return <section className="hr-workspace">
+  <div className="hr-module-head"><div><p className="eyebrow">КАДРОВЫЙ УЧЁТ</p><h2>HR Персонал</h2><p>Единый реестр сотрудников офиса</p></div><div className="hr-module-actions"><span>{items.length} сотрудников</span><button onClick={load}>Обновить</button></div></div>
+  <HrOfficeStructure departments={departments}/>
+  <section className="card hr-registry">
+   <div className="hr-search-row"><input aria-label="Поиск сотрудников" placeholder="Поиск по ФИО, табельному номеру, должности…" value={query} onChange={event=>setQuery(event.target.value)}/><strong>Найдено: {filtered.length}</strong></div>
+   <div className="hr-filter-row">
+    <Field label="Отдел"><select aria-label="Фильтр по отделу" value={departmentFilter} onChange={event=>setDepartmentFilter(event.target.value)}><option value="">Все отделы ({departments.length})</option>{departments.map(([department])=><option key={department}>{department}</option>)}</select></Field>
+    <Field label="Статус сотрудника"><select aria-label="Фильтр по статусу" value={statusFilter} onChange={event=>setStatusFilter(event.target.value)}><option value="">Все статусы</option><option value="active">Работает</option><option value="leave">В отпуске</option><option value="inactive">Неактивен</option></select></Field>
+   </div>
+   {loading?<p role="status">Загрузка кадрового реестра…</p>:<div className="table-scroll hr-table"><table><thead><tr><th>Сотрудник</th><th>Отдел</th><th>Должность</th><th>Статус</th><th>Дата приёма</th></tr></thead><tbody>{filtered.map(employee=><tr key={employee.id}><td><button className="hr-person" aria-label={employee.plan_name} onClick={()=>openCard(employee)}><span className="hr-avatar small">{initials(employee.plan_name)}</span><span><b>{employee.plan_name}</b><small>{employee.personnel_number||'Табельный номер не указан'}</small></span></button></td><td>{employee.department||employee.plan_department}</td><td>{employee.position||EMPTY}</td><td><span className={`hr-status ${(employee.employment_status||'active')}`}>{employee.employment_status==='inactive'?'Неактивен':employee.employment_status==='leave'?'В отпуске':'Работает'}</span></td><td>{employee.hire_date||EMPTY}</td></tr>)}</tbody></table></div>}
+  </section>
+  {selected&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setSelected(null)}><div className="hr-employee-modal" role="dialog" aria-modal="true" aria-label={`Карточка сотрудника ${selected.plan_name}`} onMouseDown={event=>event.stopPropagation()}>
+   <header className="hr-card-head"><div><span className="hr-head-dot"/><div><h3>{selected.plan_name}</h3><p>{selected.department||selected.plan_department} · {selected.position||'Должность не указана'}</p></div></div><div>{!canEdit&&<span className="hr-readonly">Только просмотр</span>}<button className="modal-close" onClick={()=>setSelected(null)} aria-label="Закрыть">×</button></div></header>
+   <div className="hr-card-tabs" role="tablist">{TABS.map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
+   <div className="hr-card-body"><aside className="hr-photo-panel"><div className="hr-avatar photo" aria-label="Фото сотрудника">{initials(selected.plan_name)}</div><b>{selected.plan_name}</b><small>{selected.personnel_number||'Табельный номер не указан'}</small><span className={`hr-status ${selected.employment_status||'active'}`}>{selected.employment_status==='inactive'?'Неактивен':selected.employment_status==='leave'?'В отпуске':'Работает'}</span></aside>
+    <div className="hr-form-panel">
+     {tab==='personal'&&<div className="hr-form-grid"><Field label="ФИО из плана"><input value={selected.plan_name} disabled/></Field><Field label="Офис">{input('office')}</Field><Field label="Отдел">{input('department')}</Field><Field label="Пол"><select value={draft.gender||''} disabled={!canEdit} onChange={event=>set('gender',event.target.value)}><option value="">Не указан</option><option>Женский</option><option>Мужской</option></select></Field><Field label="Год рождения">{input('birth_year','number')}</Field><Field label="Дата приёма">{input('hire_date','date')}</Field></div>}
+     {tab==='work'&&<div className="hr-form-grid"><Field label="Должность">{input('position')}</Field><Field label="Статус в отделе"><select value={draft.department_status||''} disabled={!canEdit} onChange={event=>set('department_status',event.target.value)}><option value="">Не указан</option>{DEPARTMENT_STATUSES.map(status=><option key={status}>{status}</option>)}</select></Field><Field label="Статус занятости"><select value={draft.employment_status||'active'} disabled={!canEdit} onChange={event=>set('employment_status',event.target.value)}><option value="active">Работает</option><option value="leave">В отпуске</option><option value="inactive">Неактивен</option></select></Field><Field label="Руководитель отдела"><select value={draft.department_head_id||''} disabled={!canEdit} onChange={event=>set('department_head_id',event.target.value)}><option value="">Не назначен</option>{employeeOptions(selected.id)}</select></Field><Field label="Заместитель"><select value={draft.deputy_id||''} disabled={!canEdit} onChange={event=>set('deputy_id',event.target.value)}><option value="">Не назначен</option>{employeeOptions(selected.id)}</select></Field><Field label="Замещение с">{input('deputy_from','date')}</Field><Field label="Замещение по">{input('deputy_until','date')}</Field></div>}
+     {tab==='schedule'&&<div className="hr-form-grid"><Field label="Распорядок работы">{input('work_schedule','text','Например, 5/2, 09:00–18:00')}</Field></div>}
+     {tab==='access'&&<div className="hr-form-grid"><Field label="Табельный номер">{input('personnel_number')}</Field><Field label="Рабочий email">{input('work_email','email')}</Field><Field label="Рабочий телефон">{input('work_phone','tel')}</Field><Field label="Номер карты СКУД">{input('access_card_number')}</Field><Field label="Статус карты">{input('access_card_status')}</Field><Field label="Уровень доступа">{input('access_level')}</Field></div>}
     </div>
-    <HrOfficeStructure departments={departments}/>
-    <div className="toolbar">
-      <input aria-label="Поиск в кадровом реестре" placeholder="Поиск по ФИО, отделу, должности" value={query} onChange={(event) => setQuery(event.target.value)}/>
-      <small>{filtered.length} записей</small>
-    </div>
-    {loading ? <p role="status">Загрузка кадрового реестра…</p> : <div className="table-scroll"><table>
-      <thead><tr><th>Фамилия Имя</th><th>Офис</th><th>Отдел</th><th>Должность</th><th>Статус в отделе</th></tr></thead>
-      <tbody>{filtered.map((employee) => <tr key={employee.id}>
-        <td><button className="link-button" onClick={() => openCard(employee)}>{employee.plan_name}</button></td>
-        <td>{employee.office || EMPTY}</td>
-        <td>{employee.department || employee.plan_department}</td>
-        <td>{employee.position || EMPTY}</td>
-        <td>{employee.department_status || EMPTY}</td>
-      </tr>)}</tbody>
-    </table></div>}
-    {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}>
-      <div className="modal card" role="dialog" aria-modal="true" aria-label={`Карточка сотрудника ${selected.plan_name}`} onMouseDown={(event) => event.stopPropagation()}>
-        <button className="modal-close" onClick={() => setSelected(null)} aria-label="Закрыть">×</button>
-        <p className="eyebrow">КАРТОЧКА СОТРУДНИКА</p>
-        <h3>{selected.plan_name}</h3>
-        {!EDITORS.includes(role) && <p>Просмотр личной карточки. Изменение данных доступно HR и администратору.</p>}
-        <div className="kpis hr-card-summary">
-          <div className="card"><small>Офис</small><b>{selected.office || EMPTY}</b></div>
-          <div className="card"><small>Отдел</small><b>{selected.department || selected.plan_department}</b></div>
-          <div className="card"><small>Должность</small><b>{selected.position || EMPTY}</b></div>
-          <div className="card"><small>Статус в отделе</small><b>{selected.department_status || EMPTY}</b></div>
-          <div className="card"><small>Дата приёма</small><b>{selected.hire_date || EMPTY}</b></div>
-          <div className="card"><small>Распорядок</small><b>{selected.work_schedule || EMPTY}</b></div>
-        </div>
-        {EDITORS.includes(role) && <div className="hr-card-form">
-          <h4>Личные и рабочие данные</h4>
-          <p className="muted">ФИО из первичной загрузки «План» не изменяется в этой форме.</p>
-          <label>Офис<input value={draft.office || ''} onChange={(event) => setDraft({...draft, office: event.target.value})}/></label>
-          <label>Отдел<input value={draft.department || ''} onChange={(event) => setDraft({...draft, department: event.target.value})}/></label>
-          <label>Должность<input value={draft.position || ''} onChange={(event) => setDraft({...draft, position: event.target.value})}/></label>
-          <label>Статус в отделе<select value={draft.department_status || ''} onChange={(event) => setDraft({...draft, department_status: event.target.value})}>{DEPARTMENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
-          <label>Пол<select value={draft.gender || ''} onChange={(event) => setDraft({...draft, gender: event.target.value})}><option>Не указан</option><option>Женский</option><option>Мужской</option></select></label>
-          <label>Год рождения<input type="number" min="1900" max="2100" value={draft.birth_year || ''} onChange={(event) => setDraft({...draft, birth_year: event.target.value})}/></label>
-          <label>Дата приёма<input type="date" value={draft.hire_date || ''} onChange={(event) => setDraft({...draft, hire_date: event.target.value})}/></label>
-          <label>Распорядок<input value={draft.work_schedule || ''} placeholder="Например, 5/2, 09:00–18:00" onChange={(event) => setDraft({...draft, work_schedule: event.target.value})}/></label>
-          <label>Руководитель отдела<select value={draft.department_head_id || ''} onChange={(event) => setDraft({...draft, department_head_id: event.target.value})}><option value="">Не назначен</option>{items.filter((employee) => employee.id !== selected.id).map((employee) => <option key={employee.id} value={employee.id}>{employee.plan_name}</option>)}</select></label>
-          <label>Заместитель на период<select value={draft.deputy_id || ''} onChange={(event) => setDraft({...draft, deputy_id: event.target.value})}><option value="">Не назначен</option>{items.filter((employee) => employee.id !== selected.id).map((employee) => <option key={employee.id} value={employee.id}>{employee.plan_name}</option>)}</select></label>
-          <label>Замещение с<input type="date" value={draft.deputy_from || ''} onChange={(event) => setDraft({...draft, deputy_from: event.target.value})}/></label>
-          <label>Замещение по<input type="date" value={draft.deputy_until || ''} onChange={(event) => setDraft({...draft, deputy_until: event.target.value})}/></label>
-          <label>Статус занятости<select value={draft.employment_status || ''} onChange={(event) => setDraft({...draft, employment_status: event.target.value})}><option value="active">Работает</option><option value="leave">В отпуске</option><option value="inactive">Неактивен</option></select></label>
-          <div className="actions"><button className="primary" disabled={saving} onClick={saveCard}>{saving ? 'Сохраняем…' : 'Сохранить карточку'}</button></div>
-        </div>}
-      </div>
-    </div>}
-  </section>;
+   </div>
+   <footer className="hr-card-footer"><small>Esc — закрыть карточку</small><div><button onClick={()=>setSelected(null)}>{canEdit?'Отмена':'Закрыть'}</button>{canEdit&&<button className="primary" disabled={saving} onClick={saveCard}>{saving?'Сохраняем…':'Сохранить'}</button>}</div></footer>
+  </div></div>}
+ </section>
 }
