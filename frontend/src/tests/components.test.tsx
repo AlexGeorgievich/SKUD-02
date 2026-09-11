@@ -79,17 +79,22 @@ function renderWorkspace(dataset:Dataset=workspaceData){
  return render(<Workspace user={{username:'admin',role:'admin',role_label:'Системный администратор'}} onLogout={vi.fn()}/>);
 }
 describe('Рабочее пространство',()=>{
+ it('показывает кадровый учёт первым модулем и скрывает администрирование от HR',async()=>{
+  render(<Workspace user={{username:'hr',role:'hr',role_label:'HR-служба'}} onLogout={vi.fn()}/>);
+  expect(screen.getAllByRole('group').map(group=>group.getAttribute('aria-label'))).toEqual(['Кадровый учёт','TimeTrack']);
+  expect(screen.queryByRole('button',{name:'Администрирование'})).toBeNull();
+ });
  it('использует структуру Офис — Отдел — Сотрудник и показывает весь список отделов',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');expect(screen.getByLabelText('Отдел')).toBeTruthy();expect(screen.getByRole('option',{name:'Все отделы'})).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Дашборд'}));
   const legend=document.querySelector('.office-legend') as HTMLElement;expect(legend.className).toContain('office-legend-fit');expect(legend.style.gridAutoRows).toBeTruthy();expect(legend.querySelectorAll('.department-link')).toHaveLength(2);
  });
- it('группирует меню в три визуальных блока с дашбордом в аналитике',async()=>{
+ it('группирует меню в кадровый модуль и TimeTrack',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
-  const primary=screen.getByRole('group',{name:'План и факт'}),analytics=screen.getByRole('group',{name:'Аналитика'}),service=screen.getByRole('group',{name:'Служебные разделы'});
-  expect(within(primary).getAllByRole('button').map(x=>x.textContent)).toEqual(['План','Факт','План-факт']);
-  expect(within(primary).getByText('сводные данные')).toBeTruthy();
-  expect(within(analytics).getAllByRole('button').map(x=>x.textContent)).toEqual(['Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI']);
-  expect(within(service).getAllByRole('button').map(x=>x.textContent)).toEqual(['Кадровый учёт','Загрузка Excel','Журнал действий']);
+  const hr=screen.getByRole('group',{name:'Кадровый учёт'}),timetrack=screen.getByRole('group',{name:'TimeTrack'});
+  expect(within(hr).getAllByRole('button').map(x=>x.textContent)).toEqual(['Кадровый учёт']);
+  expect(within(timetrack).getByText('сводные данные')).toBeTruthy();
+  expect(within(timetrack).getAllByRole('button').map(x=>x.textContent)).toContain('Дашборд');
+  expect(within(timetrack).getAllByRole('button').map(x=>x.textContent)).toContain('Загрузка Excel');
  });
  it('переходит из аналитики в списочный состав выбранного отдела',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
