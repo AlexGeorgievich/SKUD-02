@@ -14,4 +14,5 @@ class Settings:
     upload_limit: int = 20 * 1024 * 1024
     session_seconds: int = 28800
     database_url: str = field(default_factory=lambda: os.environ.get('DATABASE_URL', ''))
+    backup_dir: Path = field(default_factory=lambda: Path(os.environ.get('TIMETRACK_BACKUP_DIR', '/app/backups')).resolve())
     database_required: bool = field(default_factory=lambda: os.environ.get('DATABASE_REQUIRED') == '1')
