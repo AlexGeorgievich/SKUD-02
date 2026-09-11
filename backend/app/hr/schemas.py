@@ -1,7 +1,36 @@
-from pydantic import BaseModel, Field
+from datetime import date
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class HrEmployeeUpdate(BaseModel):
+DEPARTMENT_STATUSES = (
+    "Сотрудник",
+    "Руководитель отдела",
+    "Заместитель руководителя",
+    "Временно исполняющий обязанности",
+)
+
+
+class HrSafeModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class HrEmployeeUpdate(HrSafeModel):
+    plan_name: str | None = Field(default=None, max_length=255)
+    department: str | None = Field(default=None, max_length=255)
+    office: str | None = Field(default=None, max_length=255)
+    department_status: Literal[
+        "Сотрудник", "Руководитель отдела", "Заместитель руководителя", "Временно исполняющий обязанности"
+    ] | None = None
+    gender: Literal["Не указан", "Женский", "Мужской"] | None = None
+    birth_year: int | None = Field(default=None, ge=1900, le=2100)
+    hire_date: date | None = None
+    work_schedule: str | None = Field(default=None, max_length=255)
+    department_head_id: str | None = Field(default=None, max_length=36)
+    deputy_id: str | None = Field(default=None, max_length=36)
+    deputy_from: date | None = None
+    deputy_until: date | None = None
     personnel_number: str | None = Field(default=None, max_length=64)
     position: str | None = Field(default=None, max_length=255)
     schedule_type: str | None = Field(default=None, max_length=64)
@@ -15,5 +44,5 @@ class HrEmployeeUpdate(BaseModel):
     work_zones: list[str] | None = None
 
 
-class HrImportRows(BaseModel):
+class HrImportRows(HrSafeModel):
     rows: list[dict] = Field(default_factory=list, max_length=3000)

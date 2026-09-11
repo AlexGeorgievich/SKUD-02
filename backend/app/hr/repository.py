@@ -2,10 +2,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import HrAuditLog, HrEmployee, HrPlanSync
+from .models import HrAuditLog, HrBootstrapState, HrEmployee, HrPlanSync, utcnow
 
 
 SAFE_FIELDS = {
+    "plan_name", "department", "office", "department_status", "gender", "birth_year", "hire_date",
+    "work_schedule", "department_head_id", "deputy_id", "deputy_from", "deputy_until",
     "personnel_number", "position", "schedule_type", "schedule_hours",
     "employment_status", "work_email", "work_phone", "access_card_number",
     "access_card_status", "access_level", "work_zones",
@@ -27,7 +29,7 @@ class HrRepository:
         with self.sessions.begin() as session:
             employee = session.scalar(select(HrEmployee).where(HrEmployee.plan_employee_id == plan_id))
             if employee is None:
-                employee = HrEmployee(plan_employee_id=plan_id, plan_name=name, plan_department=department)
+                employee = HrEmployee(plan_employee_id=plan_id, plan_name=name, plan_department=department, department=department)
                 session.add(employee)
                 session.flush()
             else:
@@ -38,13 +40,42 @@ class HrRepository:
             session.add(HrPlanSync(employee_id=employee.id, plan_employee_id=plan_id, plan_period=period, source_name=name, source_department=department))
             return employee
 
-    def get_employee(self, employee_id: str) -> HrEmployee | None:
+    def create_from_initial_plan(self, plan_id: str, name: str, department: str, period: str) -> HrEmployee:
+        with self.sessions.begin() as session:
+            employee = HrEmployee(
+                plan_employee_id=plan_id,
+                plan_name=name,
+                plan_department=department,
+                department=department,
+                plan_period=period,
+            )
+            session.add(employee)
+            session.flush()
+            return employee
+
+    def get_employee(self, employee_id: str, include_archived: bool = False) -> HrEmployee | None:
         with self.sessions() as session:
-            return session.get(HrEmployee, employee_id) or session.scalar(select(HrEmployee).where(HrEmployee.plan_employee_id == employee_id))
+            statement = select(HrEmployee).where((HrEmployee.id == employee_id) | (HrEmployee.plan_employee_id == employee_id))
+            if not include_archived:
+                statement = statement.where(HrEmployee.archived_at.is_(None))
+            return session.scalar(statement)
+
+    def get_active_employee(self, employee_id: str) -> HrEmployee | None:
+        return self.get_employee(employee_id, include_archived=False)
 
     def list_employees(self) -> list[HrEmployee]:
         with self.sessions() as session:
-            return list(session.scalars(select(HrEmployee).order_by(HrEmployee.plan_department, HrEmployee.plan_name)).all())
+            statement = select(HrEmployee).where(HrEmployee.archived_at.is_(None)).order_by(HrEmployee.department, HrEmployee.plan_name)
+            return list(session.scalars(statement).all())
+
+    def archive_employee(self, employee_id: str, author: str) -> HrEmployee:
+        with self.sessions.begin() as session:
+            employee = session.get(HrEmployee, employee_id)
+            if employee is None:
+                raise KeyError(employee_id)
+            employee.archived_at = utcnow()
+            employee.archived_by = author
+            return employee
 
     def update_safe_fields(self, employee_id: str, values: dict) -> HrEmployee:
         invalid = set(values) - SAFE_FIELDS
