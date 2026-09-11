@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from ...container import Container
 from ...domain.errors import ServiceError
 from ..dependencies import current_user, get_container
@@ -13,8 +13,8 @@ def required_service(c: Container):
     return c.hr
 
 
-def serialize(employee):
-    return {column.name: getattr(employee, column.name) for column in employee.__table__.columns}
+def serialize(employee, mode: str = "edit"):
+    return {**{column.name: getattr(employee, column.name) for column in employee.__table__.columns}, "mode": mode}
 
 
 def can_view(user: dict, employee) -> bool:
@@ -35,6 +35,17 @@ def employees(user: dict = Depends(current_user), c: Container = Depends(get_con
     return {'items': [serialize(employee) for employee in items], 'count': len(items)}
 
 
+@router.get('/employees/{employee_id}/read-only')
+def employee_read_only(employee_id: str, source: str = Query("timetrack"), user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if source != "timetrack":
+        raise ServiceError("Недопустимый источник карточки", 400)
+    service = required_service(c)
+    item = service.repository.get_employee(employee_id)
+    if item is None or not can_view(user, item):
+        raise ServiceError('Карточка сотрудника не найдена', 404)
+    return serialize(item, mode="read-only")
+
+
 @router.get('/employees/{employee_id}')
 def employee(employee_id: str, user: dict = Depends(current_user), c: Container = Depends(get_container)):
     service = required_service(c)
@@ -45,7 +56,9 @@ def employee(employee_id: str, user: dict = Depends(current_user), c: Container 
 
 
 @router.patch('/employees/{employee_id}')
-def update_employee(employee_id: str, payload: HrEmployeeUpdate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+def update_employee(employee_id: str, payload: HrEmployeeUpdate, source: str | None = None, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if source == "timetrack":
+        raise ServiceError('Карточка TimeTrack доступна только для просмотра', 403)
     if user['role'] not in ('admin', 'hr'):
         raise ServiceError('Нет права на изменение кадровых данных', 403)
     service = required_service(c)
@@ -53,9 +66,30 @@ def update_employee(employee_id: str, payload: HrEmployeeUpdate, user: dict = De
     if item is None:
         raise ServiceError('Карточка сотрудника не найдена', 404)
     values = payload.model_dump(exclude_unset=True)
-    updated = service.repository.update_safe_fields(item.id, values)
-    service.repository.add_audit(user['username'], 'update', 'employee', item.id, values, 'manual')
+    updated = service.update_employee(item.id, values, user['username'])
     return serialize(updated)
+
+
+@router.post('/employees/{employee_id}/archive')
+def archive_employee(employee_id: str, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на архивирование кадровых данных', 403)
+    service = required_service(c)
+    try:
+        return serialize(service.archive_employee(employee_id, user['username']))
+    except KeyError:
+        raise ServiceError('Карточка сотрудника не найдена', 404)
+
+
+@router.post('/employees/{employee_id}/restore')
+def restore_employee(employee_id: str, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на восстановление кадровых данных', 403)
+    service = required_service(c)
+    try:
+        return serialize(service.restore_employee(employee_id, user['username']))
+    except KeyError:
+        raise ServiceError('Карточка сотрудника не найдена', 404)
 
 
 @router.post('/import/preview')
