@@ -109,6 +109,21 @@ describe('Кадровое рабочее место',()=>{
   await userEvent.click(screen.getByRole('button',{name:'Подтвердить архивирование'}));
   await waitFor(()=>expect(screen.queryByRole('button',{name:'Беляев Харлампий'})).toBeNull());
  });
+ it('показывает архивные карточки и восстанавливает сотрудника',async()=>{
+  const archived={...employee,archived_at:'2026-09-11T00:00:00Z',archived_by:'hr'};
+  const fetchMock=vi.fn(async(url:RequestInfo|URL,options?:RequestInit)=>{
+   const path=String(url);
+   if(path.includes('/restore'))return new Response(JSON.stringify({...employee,archived_at:null}),{status:200,headers:{'Content-Type':'application/json'}});
+   if(path.includes('archived=true'))return new Response(JSON.stringify({items:[archived],count:1}),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}});
+  });
+  vi.stubGlobal('fetch',fetchMock);render(<HrPage role="hr" notify={vi.fn()}/>);await screen.findByText('Беляев Харлампий');
+  await userEvent.selectOptions(screen.getByLabelText('Режим реестра'),'archive');
+  await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  expect(screen.getByText('Карточка в архиве')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button',{name:'Восстановить'}));
+  await waitFor(()=>expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/restore'),expect.objectContaining({method:'POST'})));
+ });
 });
 
 const workspaceData:Dataset={

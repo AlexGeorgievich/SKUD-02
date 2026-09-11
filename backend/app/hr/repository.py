@@ -94,9 +94,10 @@ class HrRepository:
     def get_active_employee(self, employee_id: str) -> HrEmployee | None:
         return self.get_employee(employee_id, include_archived=False)
 
-    def list_employees(self) -> list[HrEmployee]:
+    def list_employees(self, archived: bool = False) -> list[HrEmployee]:
         with self.sessions() as session:
-            statement = select(HrEmployee).where(HrEmployee.archived_at.is_(None)).order_by(HrEmployee.department, HrEmployee.plan_name)
+            archive_filter = HrEmployee.archived_at.is_not(None) if archived else HrEmployee.archived_at.is_(None)
+            statement = select(HrEmployee).where(archive_filter).order_by(HrEmployee.department, HrEmployee.plan_name)
             return list(session.scalars(statement).all())
 
     def archive_employee(self, employee_id: str, author: str) -> HrEmployee:

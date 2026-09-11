@@ -10,6 +10,25 @@ from backend.app.main import create_app
 
 
 class HrApiTests(unittest.TestCase):
+    def test_hr_can_list_archived_cards_and_restore_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            employee = app.state.container.hr.repository.create_manual_employee("Архивов Аркадий", "HR")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+
+            self.assertEqual(client.post(f"/api/hr/employees/{employee.id}/archive").status_code, 200)
+            self.assertEqual(client.get("/api/hr/employees").json()["count"], 0)
+            archived = client.get("/api/hr/employees?archived=true")
+            self.assertEqual(archived.status_code, 200)
+            self.assertEqual(archived.json()["items"][0]["plan_name"], "Архивов Аркадий")
+            self.assertIsNotNone(archived.json()["items"][0]["archived_at"])
+
+            self.assertEqual(client.post(f"/api/hr/employees/{employee.id}/restore").status_code, 200)
+            self.assertEqual(client.get("/api/hr/employees?archived=true").json()["count"], 0)
+
     def test_hr_can_create_employee_but_manager_cannot(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))

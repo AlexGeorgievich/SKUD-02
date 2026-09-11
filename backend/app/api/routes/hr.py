@@ -43,9 +43,11 @@ def calendar(month: str, user: dict = Depends(current_user), c: Container = Depe
 
 
 @router.get('/employees')
-def employees(user: dict = Depends(current_user), c: Container = Depends(get_container)):
+def employees(archived: bool = False, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if archived and user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на просмотр кадрового архива', 403)
     service = required_service(c)
-    items = [employee for employee in service.repository.list_employees() if can_view(user, employee)]
+    items = [employee for employee in service.repository.list_employees(archived=archived) if can_view(user, employee)]
     return {'items': [serialize(employee) for employee in items], 'count': len(items)}
 
 
