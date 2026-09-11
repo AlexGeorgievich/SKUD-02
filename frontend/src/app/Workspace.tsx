@@ -12,7 +12,7 @@ import {Audit} from '../features/audit/Audit';
 import {HrPage} from '../features/hr/HrPage';
 const PRIMARY_VIEWS:View[]=['План','Факт','План-факт'];
 const ANALYTIC_VIEWS:View[]=['Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI'];
-const SERVICE_VIEWS:View[]=['Загрузка Excel','Журнал действий','Кадровый учёт'];
+const SERVICE_VIEWS:View[]=['Кадровый учёт','Загрузка Excel','Журнал действий'];
 export function Workspace({user,onLogout}:{user:User;onLogout:()=>void}){
  const [data,setData]=useState<Dataset|null>(null),[loading,setLoading]=useState(true),[view,setView]=useState<View>('Загрузка Excel');
  const [period,setPeriod]=useState('2026-08'),[department,setDepartment]=useState(''),[search,setSearch]=useState(''),[notice,setNotice]=useState('');

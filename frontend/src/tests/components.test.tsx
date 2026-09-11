@@ -89,7 +89,7 @@ describe('Рабочее пространство',()=>{
   expect(within(primary).getAllByRole('button').map(x=>x.textContent)).toEqual(['План','Факт','План-факт']);
   expect(within(primary).getByText('сводные данные')).toBeTruthy();
   expect(within(analytics).getAllByRole('button').map(x=>x.textContent)).toEqual(['Дашборд','За месяц','Проверка данных','По дням','Аналитика и KPI']);
-  expect(within(service).getAllByRole('button').map(x=>x.textContent)).toEqual(['Загрузка Excel','Журнал действий','Кадровый учёт']);
+  expect(within(service).getAllByRole('button').map(x=>x.textContent)).toEqual(['Кадровый учёт','Загрузка Excel','Журнал действий']);
  });
  it('переходит из аналитики в списочный состав выбранного отдела',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
