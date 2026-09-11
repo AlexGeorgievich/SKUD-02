@@ -44,5 +44,10 @@ class HrEmployeeUpdate(HrSafeModel):
     work_zones: list[str] | None = None
 
 
+class HrEmployeeCreate(HrEmployeeUpdate):
+    plan_name: str = Field(min_length=1, max_length=255)
+    department: str = Field(min_length=1, max_length=255)
+
+
 class HrImportRows(HrSafeModel):
     rows: list[dict] = Field(default_factory=list, max_length=3000)

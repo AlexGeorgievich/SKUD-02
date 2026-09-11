@@ -10,6 +10,22 @@ from backend.app.main import create_app
 
 
 class HrApiTests(unittest.TestCase):
+    def test_hr_can_create_employee_but_manager_cannot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            app.state.container.auth.create_user("manager", "123456789012", "manager", department="LAW")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+            response = client.post("/api/hr/employees", json={"plan_name": "Петров Пётр", "department": "HR", "office": "PPL Group"})
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["plan_name"], "Петров Пётр")
+            self.assertEqual(response.json()["department"], "HR")
+            client.post("/api/logout")
+            client.post("/api/login", json={"username": "manager", "password": "123456789012"})
+            self.assertEqual(client.post("/api/hr/employees", json={"plan_name": "Сидоров Сидор", "department": "LAW"}).status_code, 403)
+
     def test_admin_can_edit_but_manager_cannot(self):
         with tempfile.TemporaryDirectory() as tmp:
             engine = create_engine("sqlite+pysqlite:///:memory:")

@@ -26,6 +26,8 @@ function Field({label,children}:{label:string;children:React.ReactNode}){return 
 export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
  const [items,setItems]=useState<Employee[]>([]),[selected,setSelected]=useState<Employee|null>(null);
  const [draft,setDraft]=useState<Record<string,string>>({}),[tab,setTab]=useState<Tab>('personal');
+ const [creating,setCreating]=useState(false),[newName,setNewName]=useState(''),[newDepartment,setNewDepartment]=useState('');
+ const [confirmArchive,setConfirmArchive]=useState(false);
  const [query,setQuery]=useState(''),[departmentFilter,setDepartmentFilter]=useState(''),[statusFilter,setStatusFilter]=useState('');
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const canEdit=EDITORS.includes(role);
@@ -39,7 +41,7 @@ export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
   return text.includes(query.trim().toLowerCase())&&(!departmentFilter||department===departmentFilter)&&(!statusFilter||(employee.employment_status||'active')===statusFilter)
  }),[items,query,departmentFilter,statusFilter]);
  const set=(key:string,value:string)=>setDraft(current=>({...current,[key]:value}));
- const openCard=(employee:Employee)=>{setSelected(employee);setDraft(draftFrom(employee));setTab('personal')};
+ const openCard=(employee:Employee)=>{setSelected(employee);setDraft(draftFrom(employee));setTab('personal');setConfirmArchive(false)};
  const saveCard=async()=>{
   if(!selected||!canEdit)return;
   const payload=Object.fromEntries(Object.entries(draft).map(([key,value])=>[key,value===''?null:key==='birth_year'?Number(value):value]));
@@ -47,11 +49,23 @@ export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
   try{const updated=await api<Employee>(`/api/hr/employees/${selected.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});setItems(current=>current.map(employee=>employee.id===updated.id?updated:employee));setSelected(updated);setDraft(draftFrom(updated));notify('Карточка сотрудника сохранена')}
   catch(error){notify(errorText(error))}finally{setSaving(false)}
  };
+ const createCard=async()=>{
+  if(!newName.trim()||!newDepartment.trim())return;
+  setSaving(true);
+  try{const created=await api<Employee>('/api/hr/employees',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan_name:newName.trim(),department:newDepartment.trim(),office:'PPL Group'})});setItems(current=>[...current,created]);setCreating(false);setNewName('');setNewDepartment('');notify('Карточка сотрудника создана')}
+  catch(error){notify(errorText(error))}finally{setSaving(false)}
+ };
+ const archiveCard=async()=>{
+  if(!selected||!canEdit)return;
+  setSaving(true);
+  try{await api(`/api/hr/employees/${selected.id}/archive`,{method:'POST'});setItems(current=>current.filter(employee=>employee.id!==selected.id));setSelected(null);setConfirmArchive(false);notify('Карточка сотрудника перемещена в архив')}
+  catch(error){notify(errorText(error))}finally{setSaving(false)}
+ };
  const input=(key:string,type='text',placeholder='')=><input type={type} placeholder={placeholder} value={draft[key]||''} disabled={!canEdit} onChange={event=>set(key,event.target.value)}/>;
  const employeeOptions=(exclude:string)=>items.filter(employee=>employee.id!==exclude).map(employee=><option key={employee.id} value={employee.id}>{employee.plan_name}</option>);
 
  return <section className="hr-workspace">
-  <div className="hr-module-head"><div><p className="eyebrow">КАДРОВЫЙ УЧЁТ</p><h2>HR Персонал</h2><p>Единый реестр сотрудников офиса</p></div><div className="hr-module-actions"><span>{items.length} сотрудников</span><button onClick={load}>Обновить</button></div></div>
+  <div className="hr-module-head"><div><p className="eyebrow">КАДРОВЫЙ УЧЁТ</p><h2>HR Персонал</h2><p>Единый реестр сотрудников офиса</p></div><div className="hr-module-actions"><span>{items.length} сотрудников</span><button onClick={load}>Обновить</button>{canEdit&&<button className="primary" onClick={()=>setCreating(true)}>Добавить сотрудника</button>}</div></div>
   <HrOfficeStructure departments={departments}/>
   <section className="card hr-registry">
    <div className="hr-search-row"><input aria-label="Поиск сотрудников" placeholder="Поиск по ФИО, табельному номеру, должности…" value={query} onChange={event=>setQuery(event.target.value)}/><strong>Найдено: {filtered.length}</strong></div>
@@ -61,6 +75,7 @@ export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
    </div>
    {loading?<p role="status">Загрузка кадрового реестра…</p>:<div className="table-scroll hr-table"><table><thead><tr><th>Сотрудник</th><th>Отдел</th><th>Должность</th><th>Статус</th><th>Дата приёма</th></tr></thead><tbody>{filtered.map(employee=><tr key={employee.id}><td><button className="hr-person" aria-label={employee.plan_name} onClick={()=>openCard(employee)}><span className="hr-avatar small">{initials(employee.plan_name)}</span><span><b>{employee.plan_name}</b><small>{employee.personnel_number||'Табельный номер не указан'}</small></span></button></td><td>{employee.department||employee.plan_department}</td><td>{employee.position||EMPTY}</td><td><span className={`hr-status ${(employee.employment_status||'active')}`}>{employee.employment_status==='inactive'?'Неактивен':employee.employment_status==='leave'?'В отпуске':'Работает'}</span></td><td>{employee.hire_date||EMPTY}</td></tr>)}</tbody></table></div>}
   </section>
+  {creating&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setCreating(false)}><div className="hr-create-modal" role="dialog" aria-modal="true" aria-label="Новая карточка сотрудника" onMouseDown={event=>event.stopPropagation()}><header><div><p className="eyebrow">КАДРОВЫЙ УЧЁТ</p><h3>Новый сотрудник</h3></div><button className="modal-close" aria-label="Закрыть" onClick={()=>setCreating(false)}>×</button></header><div className="hr-create-form"><Field label="ФИО"><input aria-label="ФИО нового сотрудника" autoFocus value={newName} onChange={event=>setNewName(event.target.value)}/></Field><Field label="Отдел"><input aria-label="Отдел нового сотрудника" value={newDepartment} onChange={event=>setNewDepartment(event.target.value)}/></Field><p>Остальные данные заполняются HR в личной карточке после создания.</p></div><footer><button onClick={()=>setCreating(false)}>Отмена</button><button className="primary" disabled={saving||!newName.trim()||!newDepartment.trim()} onClick={createCard}>{saving?'Создаём…':'Создать карточку'}</button></footer></div></div>}
   {selected&&<div className="modal-backdrop" role="presentation" onMouseDown={()=>setSelected(null)}><div className="hr-employee-modal" role="dialog" aria-modal="true" aria-label={`Карточка сотрудника ${selected.plan_name}`} onMouseDown={event=>event.stopPropagation()}>
    <header className="hr-card-head"><div><span className="hr-head-dot"/><div><h3>{selected.plan_name}</h3><p>{selected.department||selected.plan_department} · {selected.position||'Должность не указана'}</p></div></div><div>{!canEdit&&<span className="hr-readonly">Только просмотр</span>}<button className="modal-close" onClick={()=>setSelected(null)} aria-label="Закрыть">×</button></div></header>
    <div className="hr-card-tabs" role="tablist">{TABS.map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
@@ -72,7 +87,7 @@ export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
      {tab==='access'&&<div className="hr-form-grid"><Field label="Табельный номер">{input('personnel_number')}</Field><Field label="Рабочий email">{input('work_email','email')}</Field><Field label="Рабочий телефон">{input('work_phone','tel')}</Field><Field label="Номер карты СКУД">{input('access_card_number')}</Field><Field label="Статус карты">{input('access_card_status')}</Field><Field label="Уровень доступа">{input('access_level')}</Field></div>}
     </div>
    </div>
-   <footer className="hr-card-footer"><small>Esc — закрыть карточку</small><div><button onClick={()=>setSelected(null)}>{canEdit?'Отмена':'Закрыть'}</button>{canEdit&&<button className="primary" disabled={saving} onClick={saveCard}>{saving?'Сохраняем…':'Сохранить'}</button>}</div></footer>
+   <footer className="hr-card-footer">{confirmArchive?<div className="hr-archive-confirm"><span>Карточка исчезнет из активного реестра, но история сохранится.</span><button onClick={()=>setConfirmArchive(false)}>Отмена</button><button className="danger" disabled={saving} onClick={archiveCard}>Подтвердить архивирование</button></div>:<><small>Esc — закрыть карточку</small><div>{canEdit&&<button className="danger-link" onClick={()=>setConfirmArchive(true)}>В архив</button>}<button onClick={()=>setSelected(null)}>{canEdit?'Отмена':'Закрыть'}</button>{canEdit&&<button className="primary" disabled={saving} onClick={saveCard}>{saving?'Сохраняем…':'Сохранить'}</button>}</div></>}</footer>
   </div></div>}
  </section>
 }

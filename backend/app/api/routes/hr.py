@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from ...container import Container
 from ...domain.errors import ServiceError
 from ..dependencies import current_user, get_container
-from ...hr.schemas import HrEmployeeUpdate, HrImportRows
+from ...hr.schemas import HrEmployeeCreate, HrEmployeeUpdate, HrImportRows
 
 router = APIRouter(prefix='/api/hr', tags=['hr'])
 
@@ -47,6 +47,17 @@ def employees(user: dict = Depends(current_user), c: Container = Depends(get_con
     service = required_service(c)
     items = [employee for employee in service.repository.list_employees() if can_view(user, employee)]
     return {'items': [serialize(employee) for employee in items], 'count': len(items)}
+
+
+@router.post('/employees', status_code=201)
+def create_employee(payload: HrEmployeeCreate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на создание кадровых данных', 403)
+    try:
+        item = required_service(c).create_employee(payload.model_dump(exclude_unset=True), user['username'])
+    except ValueError as error:
+        raise ServiceError(str(error), 400)
+    return serialize(item)
 
 
 @router.get('/employees/{employee_id}/read-only')

@@ -91,6 +91,24 @@ describe('Кадровое рабочее место',()=>{
   expect(screen.getByText(/Только просмотр/)).toBeTruthy();
   expect(screen.queryByRole('button',{name:'Сохранить'})).toBeNull();
  });
+ it('позволяет HR добавить сотрудника из реестра',async()=>{
+  const created={...employee,id:'hr-2',plan_name:'Петров Пётр',department:'HR',plan_department:'HR'};
+  vi.stubGlobal('fetch',vi.fn(async(_url,options)=>new Response(JSON.stringify(options?.method==='POST'?created:{items:[employee],count:1}),{status:options?.method==='POST'?201:200,headers:{'Content-Type':'application/json'}})));
+  render(<HrPage role="hr" notify={vi.fn()}/>);await screen.findByText('Беляев Харлампий');
+  await userEvent.click(screen.getByRole('button',{name:'Добавить сотрудника'}));
+  await userEvent.type(screen.getByLabelText('ФИО нового сотрудника'),'Петров Пётр');
+  await userEvent.type(screen.getByLabelText('Отдел нового сотрудника'),'HR');
+  await userEvent.click(screen.getByRole('button',{name:'Создать карточку'}));
+  expect(await screen.findByRole('button',{name:'Петров Пётр'})).toBeTruthy();
+ });
+ it('архивирует карточку только после отдельного подтверждения',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async(_url,options)=>new Response(JSON.stringify(options?.method==='POST'?{...employee,archived_at:'2026-09-11T00:00:00Z'}:{items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}})));
+  render(<HrPage role="hr" notify={vi.fn()}/>);await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  await userEvent.click(screen.getByRole('button',{name:'В архив'}));
+  expect(screen.getByText(/Карточка исчезнет из активного реестра/)).toBeTruthy();
+  await userEvent.click(screen.getByRole('button',{name:'Подтвердить архивирование'}));
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'Беляев Харлампий'})).toBeNull());
+ });
 });
 
 const workspaceData:Dataset={
