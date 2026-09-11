@@ -1,0 +1,11 @@
+services:
+  postgres:
+    env_file: ../../.env
+  migrate:
+    env_file: ../../.env
+  app:
+    env_file: ../../.env
+    environment:
+      TIMETRACK_ALLOW_TEST_PASSWORD: "1"
+    ports: !override
+      - "8001:8000"

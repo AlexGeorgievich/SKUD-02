@@ -10,7 +10,7 @@ class Settings:
     data_dir: Path = field(default_factory=lambda: Path(os.environ.get('TIMETRACK_DATA', PROJECT_ROOT / 'data')).resolve())
     frontend_dir: Path = PROJECT_ROOT / 'frontend' / 'dist'
     allowed_hosts: tuple[str, ...] = ('localhost', '127.0.0.1')
-    allowed_origins: tuple[str, ...] = ('http://localhost:8000', 'http://127.0.0.1:8000')
+    allowed_origins: tuple[str, ...] = ('http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:8001', 'http://127.0.0.1:8001')
     upload_limit: int = 20 * 1024 * 1024
     session_seconds: int = 28800
     database_url: str = field(default_factory=lambda: os.environ.get('DATABASE_URL', ''))

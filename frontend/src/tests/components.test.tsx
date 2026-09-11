@@ -7,6 +7,7 @@ import {Upload} from '../features/import/Upload';
 import {filterEmployees,summarize} from '../features/analytics/model';
 import type {Dataset,Employee} from '../shared/types';
 import {Workspace} from '../app/Workspace';
+import {HrPage} from '../features/hr/HrPage';
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()});
 describe('Файлы',()=>{
@@ -81,16 +82,24 @@ function renderWorkspace(dataset:Dataset=workspaceData){
 describe('Рабочее пространство',()=>{
  it('показывает кадровый учёт первым модулем и скрывает администрирование от HR',async()=>{
   render(<Workspace user={{username:'hr',role:'hr',role_label:'HR-служба'}} onLogout={vi.fn()}/>);
-  expect(screen.getAllByRole('group').map(group=>group.getAttribute('aria-label'))).toEqual(['Кадровый учёт','TimeTrack']);
+  expect(screen.getAllByRole('group').map(group=>group.getAttribute('aria-label'))).toEqual(['Кадровый учёт','Учёт рабочего времени']);
   expect(screen.queryByRole('button',{name:'Администрирование'})).toBeNull();
+ });
+ it('показывает администрирование только системному администратору',async()=>{
+  renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
+  expect(screen.getByRole('button',{name:'Администрирование'})).toBeTruthy();
+ });
+ it('показывает три верхних пункта общего GUI для admin',async()=>{
+  renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
+  expect(screen.getAllByRole('group').map(group=>group.getAttribute('aria-label'))).toEqual(['Кадровый учёт','Учёт рабочего времени','Администрирование']);
  });
  it('использует структуру Офис — Отдел — Сотрудник и показывает весь список отделов',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');expect(screen.getByLabelText('Отдел')).toBeTruthy();expect(screen.getByRole('option',{name:'Все отделы'})).toBeTruthy();await userEvent.click(screen.getByRole('button',{name:'Дашборд'}));
   const legend=document.querySelector('.office-legend') as HTMLElement;expect(legend.className).toContain('office-legend-fit');expect(legend.style.gridAutoRows).toBeTruthy();expect(legend.querySelectorAll('.department-link')).toHaveLength(2);
  });
- it('группирует меню в кадровый модуль и TimeTrack',async()=>{
+ it('группирует меню в кадровый модуль и учёт рабочего времени',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
-  const hr=screen.getByRole('group',{name:'Кадровый учёт'}),timetrack=screen.getByRole('group',{name:'TimeTrack'});
+  const hr=screen.getByRole('group',{name:'Кадровый учёт'}),timetrack=screen.getByRole('group',{name:'Учёт рабочего времени'});
   expect(within(hr).getAllByRole('button').map(x=>x.textContent)).toEqual(['Кадровый учёт']);
   expect(within(timetrack).getByText('сводные данные')).toBeTruthy();
   expect(within(timetrack).getAllByRole('button').map(x=>x.textContent)).toContain('Дашборд');

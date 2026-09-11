@@ -1,17 +1,160 @@
-import {useEffect,useMemo,useState} from 'react';
-import {api,ApiError,errorText} from '../../shared/api/client';
+import {useEffect, useMemo, useState} from 'react';
+
+import {api, ApiError, errorText} from '../../shared/api/client';
 import type {Role} from '../../shared/types';
+import {HrOfficeStructure} from './HrOfficeStructure';
 
-type HrEmployee={id:string;plan_name:string;plan_department:string;position?:string|null;employment_status?:string|null;in_current_plan:boolean;access_card_status?:string|null};
-const EDITORS:Role[]=['admin','hr'];
+type Employee = {
+  id: string;
+  plan_name: string;
+  plan_department: string;
+  office?: string | null;
+  department?: string | null;
+  department_status?: string | null;
+  gender?: string | null;
+  birth_year?: number | null;
+  position?: string | null;
+  hire_date?: string | null;
+  work_schedule?: string | null;
+  department_head_id?: string | null;
+  deputy_id?: string | null;
+  deputy_from?: string | null;
+  deputy_until?: string | null;
+  employment_status?: string | null;
+};
 
-export function HrPage({role,notify}:{role:Role;notify:(message:string)=>void}){
- const [items,setItems]=useState<HrEmployee[]>([]),[selected,setSelected]=useState<HrEmployee|null>(null),[query,setQuery]=useState(''),[loading,setLoading]=useState(true),[position,setPosition]=useState(''),[mode,setMode]=useState<'registry'|'analytics'|'import'>('registry'),[payload,setPayload]=useState('[{"plan_id":"","position":""}]');
- const load=()=>{setLoading(true);api<{items:HrEmployee[]}>('/api/hr/employees').then(r=>setItems(r.items)).catch(e=>{if(!(e instanceof ApiError&&e.status===503))notify(errorText(e))}).finally(()=>setLoading(false))};
- useEffect(load,[]);
- const filtered=useMemo(()=>items.filter(e=>`${e.plan_name} ${e.plan_department} ${e.position||''}`.toLowerCase().includes(query.toLowerCase())),[items,query]);
- const departments=useMemo(()=>Object.entries(items.reduce<Record<string,number>>((a,e)=>(a[e.plan_department]=(a[e.plan_department]||0)+1,a),{})).sort((a,b)=>b[1]-a[1]),[items]);
- async function save(){if(!selected)return;try{const updated=await api<HrEmployee>(`/api/hr/employees/${selected.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({position})});setItems(prev=>prev.map(e=>e.id===updated.id?updated:e));setSelected(updated);notify('Карточка сохранена')}catch(e){notify(errorText(e))}}
- async function preview(apply=false){try{const rows=JSON.parse(payload);const result=await api<{error_count:number;updated?:number}>(`/api/hr/import/${apply?'apply':'preview'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})});notify(apply?`Импорт применён: обновлено ${result.updated||0}`:`Проверка завершена: ошибок ${result.error_count}`);if(apply)load()}catch(e){notify(e instanceof SyntaxError?'Исправьте JSON в данных импорта':errorText(e))}}
- return <section className="card hr-page"><div className="pagehead"><div><p className="eyebrow">КАДРОВЫЙ УЧЁТ</p><h2>Реестр сотрудников</h2><p>ФИО и отдел берутся из первичного источника «План».</p></div><button onClick={load}>Обновить</button></div><div className="hr-tabs"><button className={mode==='registry'?'active':''} onClick={()=>setMode('registry')}>Реестр</button><button className={mode==='analytics'?'active':''} onClick={()=>setMode('analytics')}>Аналитика</button>{EDITORS.includes(role)&&<button className={mode==='import'?'active':''} onClick={()=>setMode('import')}>Импорт HR</button>}</div>{mode==='analytics'?<div className="kpis"><div className="card"><small>Всего сотрудников</small><b>{items.length}</b></div><div className="card"><small>В текущем плане</small><b>{items.filter(e=>e.in_current_plan).length}</b></div><div className="card"><small>Без должности</small><b>{items.filter(e=>!e.position).length}</b></div><div className="card"><small>Без статуса карты</small><b>{items.filter(e=>!e.access_card_status).length}</b></div><div className="card hr-dept-list"><h3>Штат по отделам</h3>{departments.map(([department,count])=><div key={department}><span>{department}</span><b>{count}</b></div>)}</div></div>:mode==='import'?<div className="hr-import"><p>Безопасные поля обновляются только для сотрудников, уже связанных с «Планом». ФИО и отдел игнорируются.</p><textarea aria-label="Строки HR импорта JSON" value={payload} onChange={e=>setPayload(e.target.value)} rows={8}/><div className="actions"><button onClick={()=>preview(false)}>Проверить preview</button><button className="primary" onClick={()=>preview(true)}>Применить</button></div></div>:<><div className="toolbar"><input aria-label="Поиск в кадровом реестре" placeholder="Поиск по ФИО, отделу, должности" value={query} onChange={e=>setQuery(e.target.value)}/><small>{filtered.length} записей</small></div>{loading?<p role="status">Загрузка кадрового реестра…</p>:<div className="table-scroll"><table><thead><tr><th>Фамилия Имя</th><th>Отдел</th><th>Должность</th><th>Статус</th><th>СКУД</th></tr></thead><tbody>{filtered.map(e=><tr key={e.id} tabIndex={0} onClick={()=>{setSelected(e);setPosition(e.position||'')}} onKeyDown={event=>event.key==='Enter'&&setSelected(e)}><td><button className="link-button" onClick={event=>{event.stopPropagation();setSelected(e);setPosition(e.position||'')}}>{e.plan_name}</button></td><td>{e.plan_department}</td><td>{e.position||'—'}</td><td>{e.in_current_plan?'В текущем плане':'Нет в текущем плане'}</td><td>{e.access_card_status||'—'}</td></tr>)}</tbody></table></div>}</>}{selected&&<div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal card"><button className="modal-close" onClick={()=>setSelected(null)} aria-label="Закрыть">×</button><p className="eyebrow">КАРТОЧКА СОТРУДНИКА</p><h3>{selected.plan_name}</h3><p>{selected.plan_department} · Источник ФИО и отдела: План</p><label>Должность<input disabled={!EDITORS.includes(role)} value={position} onChange={e=>setPosition(e.target.value)}/></label>{EDITORS.includes(role)&&<button className="primary" onClick={save}>Сохранить</button>}</div></div>}</section>;
+const EDITORS: Role[] = ['admin', 'hr'];
+const EMPTY = 'Не заполнено';
+const DEPARTMENT_STATUSES = ['Сотрудник', 'Руководитель отдела', 'Заместитель руководителя', 'Временно исполняющий обязанности'];
+
+function cardDraft(employee: Employee) {
+  return {
+    office: employee.office || '', department: employee.department || employee.plan_department,
+    department_status: employee.department_status || 'Сотрудник', gender: employee.gender || 'Не указан',
+    birth_year: employee.birth_year ? String(employee.birth_year) : '', hire_date: employee.hire_date || '',
+    work_schedule: employee.work_schedule || '', position: employee.position || '',
+    department_head_id: employee.department_head_id || '', deputy_id: employee.deputy_id || '',
+    deputy_from: employee.deputy_from || '', deputy_until: employee.deputy_until || '',
+    employment_status: employee.employment_status || 'active',
+  };
+}
+
+export function HrPage({role, notify}: {role: Role; notify: (message: string) => void}) {
+  const [items, setItems] = useState<Employee[]>([]);
+  const [selected, setSelected] = useState<Employee | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    api<{items: Employee[]}>('/api/hr/employees')
+      .then((response) => setItems(response.items))
+      .catch((error) => {
+        if (!(error instanceof ApiError && error.status === 503)) notify(errorText(error));
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelected(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, []);
+
+  const filtered = useMemo(() => items.filter((employee) =>
+    `${employee.plan_name} ${employee.department || employee.plan_department} ${employee.position || ''}`
+      .toLowerCase().includes(query.toLowerCase())), [items, query]);
+  const departments = useMemo(() => Object.entries(items.reduce<Record<string, number>>((result, employee) => {
+    const department = employee.department || employee.plan_department;
+    result[department] = (result[department] || 0) + 1;
+    return result;
+  }, {})).sort((left, right) => right[1] - left[1]) as [string, number][], [items]);
+
+  const openCard = (employee: Employee) => {
+    setSelected(employee);
+    setDraft(cardDraft(employee));
+  };
+  const saveCard = async () => {
+    if (!selected || !EDITORS.includes(role)) return;
+    const payload = {...draft, birth_year: draft.birth_year ? Number(draft.birth_year) : null};
+    setSaving(true);
+    try {
+      const updated = await api<Employee>(`/api/hr/employees/${selected.id}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+      });
+      setItems((current) => current.map((employee) => employee.id === updated.id ? updated : employee));
+      setSelected(updated);
+      setDraft(cardDraft(updated));
+      notify('Карточка сотрудника сохранена');
+    } catch (error) {
+      notify(errorText(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <section className="card hr-page">
+    <div className="pagehead">
+      <div>
+        <p className="eyebrow">КАДРОВЫЙ УЧЁТ</p>
+        <h2>Реестр сотрудников</h2>
+        <p>Первичный источник ФИО и отдела — «План».</p>
+      </div>
+      <button onClick={load}>Обновить</button>
+    </div>
+    <HrOfficeStructure departments={departments}/>
+    <div className="toolbar">
+      <input aria-label="Поиск в кадровом реестре" placeholder="Поиск по ФИО, отделу, должности" value={query} onChange={(event) => setQuery(event.target.value)}/>
+      <small>{filtered.length} записей</small>
+    </div>
+    {loading ? <p role="status">Загрузка кадрового реестра…</p> : <div className="table-scroll"><table>
+      <thead><tr><th>Фамилия Имя</th><th>Офис</th><th>Отдел</th><th>Должность</th><th>Статус в отделе</th></tr></thead>
+      <tbody>{filtered.map((employee) => <tr key={employee.id}>
+        <td><button className="link-button" onClick={() => openCard(employee)}>{employee.plan_name}</button></td>
+        <td>{employee.office || EMPTY}</td>
+        <td>{employee.department || employee.plan_department}</td>
+        <td>{employee.position || EMPTY}</td>
+        <td>{employee.department_status || EMPTY}</td>
+      </tr>)}</tbody>
+    </table></div>}
+    {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}>
+      <div className="modal card" role="dialog" aria-modal="true" aria-label={`Карточка сотрудника ${selected.plan_name}`} onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={() => setSelected(null)} aria-label="Закрыть">×</button>
+        <p className="eyebrow">КАРТОЧКА СОТРУДНИКА</p>
+        <h3>{selected.plan_name}</h3>
+        {!EDITORS.includes(role) && <p>Просмотр личной карточки. Изменение данных доступно HR и администратору.</p>}
+        <div className="kpis hr-card-summary">
+          <div className="card"><small>Офис</small><b>{selected.office || EMPTY}</b></div>
+          <div className="card"><small>Отдел</small><b>{selected.department || selected.plan_department}</b></div>
+          <div className="card"><small>Должность</small><b>{selected.position || EMPTY}</b></div>
+          <div className="card"><small>Статус в отделе</small><b>{selected.department_status || EMPTY}</b></div>
+          <div className="card"><small>Дата приёма</small><b>{selected.hire_date || EMPTY}</b></div>
+          <div className="card"><small>Распорядок</small><b>{selected.work_schedule || EMPTY}</b></div>
+        </div>
+        {EDITORS.includes(role) && <div className="hr-card-form">
+          <h4>Личные и рабочие данные</h4>
+          <p className="muted">ФИО из первичной загрузки «План» не изменяется в этой форме.</p>
+          <label>Офис<input value={draft.office || ''} onChange={(event) => setDraft({...draft, office: event.target.value})}/></label>
+          <label>Отдел<input value={draft.department || ''} onChange={(event) => setDraft({...draft, department: event.target.value})}/></label>
+          <label>Должность<input value={draft.position || ''} onChange={(event) => setDraft({...draft, position: event.target.value})}/></label>
+          <label>Статус в отделе<select value={draft.department_status || ''} onChange={(event) => setDraft({...draft, department_status: event.target.value})}>{DEPARTMENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
+          <label>Пол<select value={draft.gender || ''} onChange={(event) => setDraft({...draft, gender: event.target.value})}><option>Не указан</option><option>Женский</option><option>Мужской</option></select></label>
+          <label>Год рождения<input type="number" min="1900" max="2100" value={draft.birth_year || ''} onChange={(event) => setDraft({...draft, birth_year: event.target.value})}/></label>
+          <label>Дата приёма<input type="date" value={draft.hire_date || ''} onChange={(event) => setDraft({...draft, hire_date: event.target.value})}/></label>
+          <label>Распорядок<input value={draft.work_schedule || ''} placeholder="Например, 5/2, 09:00–18:00" onChange={(event) => setDraft({...draft, work_schedule: event.target.value})}/></label>
+          <label>Руководитель отдела<select value={draft.department_head_id || ''} onChange={(event) => setDraft({...draft, department_head_id: event.target.value})}><option value="">Не назначен</option>{items.filter((employee) => employee.id !== selected.id).map((employee) => <option key={employee.id} value={employee.id}>{employee.plan_name}</option>)}</select></label>
+          <label>Заместитель на период<select value={draft.deputy_id || ''} onChange={(event) => setDraft({...draft, deputy_id: event.target.value})}><option value="">Не назначен</option>{items.filter((employee) => employee.id !== selected.id).map((employee) => <option key={employee.id} value={employee.id}>{employee.plan_name}</option>)}</select></label>
+          <label>Замещение с<input type="date" value={draft.deputy_from || ''} onChange={(event) => setDraft({...draft, deputy_from: event.target.value})}/></label>
+          <label>Замещение по<input type="date" value={draft.deputy_until || ''} onChange={(event) => setDraft({...draft, deputy_until: event.target.value})}/></label>
+          <label>Статус занятости<select value={draft.employment_status || ''} onChange={(event) => setDraft({...draft, employment_status: event.target.value})}><option value="active">Работает</option><option value="leave">В отпуске</option><option value="inactive">Неактивен</option></select></label>
+          <div className="actions"><button className="primary" disabled={saving} onClick={saveCard}>{saving ? 'Сохраняем…' : 'Сохранить карточку'}</button></div>
+        </div>}
+      </div>
+    </div>}
+  </section>;
 }
