@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -53,6 +55,34 @@ class HrRepository:
             session.flush()
             return employee
 
+    def create_manual_employee(self, name: str, department: str) -> HrEmployee:
+        with self.sessions.begin() as session:
+            employee = HrEmployee(
+                plan_employee_id=f"manual:{uuid4()}",
+                plan_name=name,
+                plan_department=department,
+                department=department,
+                in_current_plan=False,
+            )
+            session.add(employee)
+            session.flush()
+            return employee
+
+    def is_bootstrap_complete(self) -> bool:
+        with self.sessions() as session:
+            return session.get(HrBootstrapState, "plan_initial_load") is not None
+
+    def has_employees(self) -> bool:
+        with self.sessions() as session:
+            return session.scalar(select(HrEmployee.id).limit(1)) is not None
+
+    def mark_bootstrap_complete(self, author: str, period: str) -> None:
+        with self.sessions.begin() as session:
+            if session.get(HrBootstrapState, "plan_initial_load") is None:
+                session.add(HrBootstrapState(
+                    key="plan_initial_load", completed_by=author, source_period=period,
+                ))
+
     def get_employee(self, employee_id: str, include_archived: bool = False) -> HrEmployee | None:
         with self.sessions() as session:
             statement = select(HrEmployee).where((HrEmployee.id == employee_id) | (HrEmployee.plan_employee_id == employee_id))
@@ -75,6 +105,15 @@ class HrRepository:
                 raise KeyError(employee_id)
             employee.archived_at = utcnow()
             employee.archived_by = author
+            return employee
+
+    def restore_employee(self, employee_id: str) -> HrEmployee:
+        with self.sessions.begin() as session:
+            employee = session.get(HrEmployee, employee_id)
+            if employee is None:
+                raise KeyError(employee_id)
+            employee.archived_at = None
+            employee.archived_by = None
             return employee
 
     def update_safe_fields(self, employee_id: str, values: dict) -> HrEmployee:

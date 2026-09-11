@@ -9,14 +9,50 @@ class HrService:
         self.repository = repository
 
     def sync_plan_rows(self, rows: list[dict], period: str, author: str) -> dict:
-        seen = set()
+        return self.bootstrap_from_plan(rows, period, author)
+
+    def bootstrap_from_plan(self, rows: list[dict], period: str, author: str) -> dict:
+        if self.repository.is_bootstrap_complete():
+            return {"status": "skipped", "created": 0, "period": period}
+        if self.repository.has_employees():
+            self.repository.mark_bootstrap_complete(author, period)
+            self.repository.add_audit(author, "initial_plan_bootstrap_skipped", "registry", period, {"reason": "existing_records"}, "plan")
+            return {"status": "skipped", "created": 0, "period": period}
+        created = 0
         for row in rows:
             plan_id = str(row.get("id") or row.get("normalized") or row["name"])
-            self.repository.upsert_plan_employee(plan_id, row["name"], row["department"], period)
-            seen.add(plan_id)
-        self.repository.mark_not_in_plan(seen)
-        self.repository.add_audit(author, "plan_sync", "plan", period, {"count": len(rows)}, "plan")
-        return {"synced": len(rows), "period": period}
+            self.repository.create_from_initial_plan(plan_id, row["name"], row["department"], period)
+            created += 1
+        self.repository.mark_bootstrap_complete(author, period)
+        self.repository.add_audit(author, "initial_plan_bootstrap", "registry", period, {"created": created}, "plan")
+        return {"status": "applied", "created": created, "period": period}
+
+    def create_employee(self, values: dict, author: str) -> HrEmployee:
+        name = str(values.get("plan_name") or "").strip()
+        department = str(values.get("department") or "").strip()
+        if not name or not department:
+            raise ValueError("Для карточки сотрудника укажите ФИО и отдел")
+        employee = self.repository.create_manual_employee(name, department)
+        updates = {key: value for key, value in values.items() if key in SAFE_FIELDS and key not in {"plan_name", "department"}}
+        if updates:
+            employee = self.repository.update_safe_fields(employee.id, updates)
+        self.repository.add_audit(author, "create", "employee", employee.id, values, "manual")
+        return employee
+
+    def update_employee(self, employee_id: str, values: dict, author: str) -> HrEmployee:
+        updated = self.repository.update_safe_fields(employee_id, values)
+        self.repository.add_audit(author, "update", "employee", employee_id, values, "manual")
+        return updated
+
+    def archive_employee(self, employee_id: str, author: str) -> HrEmployee:
+        archived = self.repository.archive_employee(employee_id, author)
+        self.repository.add_audit(author, "archive", "employee", employee_id, None, "manual")
+        return archived
+
+    def restore_employee(self, employee_id: str, author: str) -> HrEmployee:
+        restored = self.repository.restore_employee(employee_id)
+        self.repository.add_audit(author, "restore", "employee", employee_id, None, "manual")
+        return restored
 
     def preview_rows(self, rows: list[dict]) -> dict:
         errors = []

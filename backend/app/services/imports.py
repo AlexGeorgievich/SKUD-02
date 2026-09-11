@@ -34,6 +34,6 @@ class ImportService:
         self.repository.save_snapshot(result, identities)
         if self.hr_service is not None:
             plan_rows = read_input(plan, 'plan', period)
-            self.hr_service.sync_plan_rows(plan_rows, period, user['username'])
+            self.hr_service.bootstrap_from_plan(plan_rows, period, user['username'])
         self.repository.audit(user, 'Импорт ' + period)
         return {'ok': True, 'employees': len(result['employees']), 'unmatched': len(result['unmatched'])}
