@@ -35,7 +35,7 @@ class StorageTests(unittest.TestCase):
 
     def test_domain_has_no_external_layer_dependencies(self):
         for file in (PROJECT_ROOT/'backend/app/domain').glob('*.py'):
-            for node in ast.walk(ast.parse(file.read_text())):
+            for node in ast.walk(ast.parse(file.read_text(encoding='utf-8'))):
                 if isinstance(node, ast.Import):
                     modules = [a.name for a in node.names]
                 elif isinstance(node, ast.ImportFrom):

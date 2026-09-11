@@ -10,8 +10,9 @@ from .ports import Repository
 from .reconciliation import process
 
 class ImportService:
-    def __init__(self, repository: Repository):
+    def __init__(self, repository: Repository, hr_service=None):
         self.repository = repository
+        self.hr_service = hr_service
 
     def demo(self, period: str) -> bytes:
         plan, fact = generate(period)
@@ -31,5 +32,8 @@ class ImportService:
             raise ServiceError('Дата анализа не может быть в будущем')
         result, identities = process(plan, fact, period, base64.urlsafe_b64decode(self.repository.key()), asof)
         self.repository.save_snapshot(result, identities)
+        if self.hr_service is not None:
+            plan_rows = read_input(plan, 'plan', period)
+            self.hr_service.sync_plan_rows(plan_rows, period, user['username'])
         self.repository.audit(user, 'Импорт ' + period)
         return {'ok': True, 'employees': len(result['employees']), 'unmatched': len(result['unmatched'])}
