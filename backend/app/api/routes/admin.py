@@ -52,3 +52,14 @@ def create_restore_request(payload: dict, user: dict = Depends(current_user)):
     phrase = f"RESTORE {backup_id}"
     restore_requests[request_id] = {"backup_id": backup_id, "author": user["username"], "phrase": phrase}
     return {"id": request_id, "confirmation_phrase": phrase}
+
+
+@router.post("/restore-requests/{request_id}/confirm")
+def confirm_restore_request(request_id: str, payload: dict, user: dict = Depends(current_user)):
+    require_admin(user)
+    request = restore_requests.get(request_id)
+    if request is None:
+        raise ServiceError("Заявка на восстановление не найдена", 404)
+    if payload.get("confirmation") != request["phrase"]:
+        raise ServiceError("Фраза подтверждения не совпадает", 400)
+    return {"id": request_id, "status": "confirmed", "backup_id": request["backup_id"]}

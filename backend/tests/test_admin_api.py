@@ -43,6 +43,16 @@ class AdminApiTests(unittest.TestCase):
             self.assertTrue(phrase.startswith("RESTORE copy-1"))
             self.assertEqual(client.post("/api/admin/restore-requests/x/confirm", json={"confirmation": "wrong"}).status_code, 404)
 
+    def test_wrong_confirmation_does_not_confirm_restore(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            app.state.container.auth.create_user("admin", "123456789012", "admin")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "admin", "password": "123456789012"})
+            request = client.post("/api/admin/restore-requests", json={"backup_id": "copy-1"}).json()
+            response = client.post(f"/api/admin/restore-requests/{request['id']}/confirm", json={"confirmation": "wrong"})
+            self.assertEqual(response.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
