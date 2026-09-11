@@ -54,6 +54,23 @@ class HrServiceTests(unittest.TestCase):
 
         self.assertEqual(self.repository.list_employees()[0].id, employee.id)
 
+    def test_analytics_counts_incomplete_cards_and_departments_without_deputy(self):
+        self.service.create_employee({"plan_name": "Иванова Анна", "department": "HR", "department_status": "Руководитель отдела"}, "hr")
+
+        result = self.service.analytics()
+
+        self.assertEqual(result["incomplete_cards"], 1)
+        self.assertEqual(result["departments_without_deputy"], ["HR"])
+
+    def test_calendar_emits_hire_anniversary_without_contact_data(self):
+        employee = self.service.create_employee({"plan_name": "Петров Пётр", "department": "LAW", "hire_date": "2020-09-11"}, "hr")
+
+        event = self.service.calendar_events("2026-09")[0]
+
+        self.assertEqual(event["employee_id"], employee.id)
+        self.assertEqual(event["kind"], "hire_anniversary")
+        self.assertNotIn("work_phone", event)
+
     def test_preview_does_not_change_registry(self):
         preview = self.service.preview_rows([{"plan_id": "a", "position": "Юрист", "passport": "blocked"}])
         self.assertEqual(preview["error_count"], 1)

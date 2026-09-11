@@ -28,6 +28,20 @@ def can_view(user: dict, employee) -> bool:
     return False
 
 
+@router.get('/analytics')
+def analytics(user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr', 'timekeeper', 'executive', 'auditor', 'manager'):
+        raise ServiceError('Нет права на кадровую аналитику', 403)
+    return required_service(c).analytics()
+
+
+@router.get('/calendar')
+def calendar(month: str, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr', 'timekeeper', 'executive', 'auditor', 'manager'):
+        raise ServiceError('Нет права на кадровый календарь', 403)
+    return {'items': required_service(c).calendar_events(month)}
+
+
 @router.get('/employees')
 def employees(user: dict = Depends(current_user), c: Container = Depends(get_container)):
     service = required_service(c)

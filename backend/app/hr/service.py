@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from datetime import date
 
 from .models import HrEmployee, HrImportBatch
 from .repository import HrRepository, SAFE_FIELDS
@@ -33,13 +33,14 @@ class HrService:
         if not name or not department:
             raise ValueError("Для карточки сотрудника укажите ФИО и отдел")
         employee = self.repository.create_manual_employee(name, department)
-        updates = {key: value for key, value in values.items() if key in SAFE_FIELDS and key not in {"plan_name", "department"}}
+        updates = self._normalize_values({key: value for key, value in values.items() if key in SAFE_FIELDS and key not in {"plan_name", "department"}})
         if updates:
             employee = self.repository.update_safe_fields(employee.id, updates)
         self.repository.add_audit(author, "create", "employee", employee.id, values, "manual")
         return employee
 
     def update_employee(self, employee_id: str, values: dict, author: str) -> HrEmployee:
+        values = self._normalize_values(values)
         updated = self.repository.update_safe_fields(employee_id, values)
         self.repository.add_audit(author, "update", "employee", employee_id, values, "manual")
         return updated
@@ -53,6 +54,41 @@ class HrService:
         restored = self.repository.restore_employee(employee_id)
         self.repository.add_audit(author, "restore", "employee", employee_id, None, "manual")
         return restored
+
+    @staticmethod
+    def _normalize_values(values: dict) -> dict:
+        normalized = dict(values)
+        for key in ("hire_date", "deputy_from", "deputy_until"):
+            if isinstance(normalized.get(key), str):
+                normalized[key] = date.fromisoformat(normalized[key])
+        return normalized
+
+    def analytics(self) -> dict:
+        employees = self.repository.list_employees()
+        departments = sorted({employee.department for employee in employees if employee.department})
+        heads = {employee.department for employee in employees if employee.department and employee.department_status == "Руководитель отдела"}
+        deputies = {employee.department for employee in employees if employee.department and employee.department_status in ("Заместитель руководителя", "Временно исполняющий обязанности")}
+        incomplete = sum(1 for employee in employees if not employee.office or not employee.position or not employee.hire_date)
+        return {
+            "total": len(employees),
+            "incomplete_cards": incomplete,
+            "departments_without_deputy": sorted(heads - deputies),
+            "departments": departments,
+        }
+
+    def calendar_events(self, month: str) -> list[dict]:
+        year, month_number = (int(part) for part in month.split("-", 1))
+        events = []
+        for employee in self.repository.list_employees():
+            if employee.hire_date and employee.hire_date.month == month_number:
+                events.append({
+                    "employee_id": employee.id,
+                    "employee_name": employee.plan_name,
+                    "department": employee.department,
+                    "date": date(year, month_number, employee.hire_date.day).isoformat(),
+                    "kind": "hire_anniversary",
+                })
+        return sorted(events, key=lambda event: (event["date"], event["employee_name"]))
 
     def preview_rows(self, rows: list[dict]) -> dict:
         errors = []

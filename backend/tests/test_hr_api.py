@@ -50,6 +50,20 @@ class HrApiTests(unittest.TestCase):
             self.assertEqual(client.post("/api/login", json={"username": "manager", "password": "123456789012"}).status_code, 200)
             self.assertEqual(client.post(f"/api/hr/employees/{employee.id}/restore").status_code, 403)
 
+    def test_hr_calendar_and_analytics_are_available_to_authorized_user(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            employee = app.state.container.hr.repository.create_manual_employee("Иванов Иван", "LAW")
+            app.state.container.hr.update_employee(employee.id, {"hire_date": "2020-09-11"}, "hr")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+            self.assertEqual(client.get("/api/hr/analytics").status_code, 200)
+            response = client.get("/api/hr/calendar?month=2026-09")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["items"][0]["kind"], "hire_anniversary")
+
 
 if __name__ == "__main__":
     unittest.main()

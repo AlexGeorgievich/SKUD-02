@@ -1,4 +1,5 @@
 from uuid import uuid4
+from json import dumps, loads
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -130,7 +131,8 @@ class HrRepository:
 
     def add_audit(self, author: str, action: str, object_type: str, object_id: str, changed_fields: dict | None, source: str) -> None:
         with self.sessions.begin() as session:
-            session.add(HrAuditLog(author=author, action=action, object_type=object_type, object_id=object_id, changed_fields=changed_fields, source=source))
+            safe_fields = loads(dumps(changed_fields, default=str)) if changed_fields is not None else None
+            session.add(HrAuditLog(author=author, action=action, object_type=object_type, object_id=object_id, changed_fields=safe_fields, source=source))
 
     def mark_not_in_plan(self, plan_ids: set[str]) -> None:
         with self.sessions.begin() as session:
