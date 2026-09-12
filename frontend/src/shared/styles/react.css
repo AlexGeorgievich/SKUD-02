@@ -122,6 +122,20 @@ aside{overflow-y:auto}aside nav{gap:3px}aside nav button{font-size:14px;padding:
 @media(max-width:1200px){.hr-system-head{grid-template-columns:210px 1fr}.hr-system-actions{grid-column:1/-1;justify-content:flex-end}.hr-event-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:800px){.hr-system-head{position:static;display:flex;flex-wrap:wrap}.hr-section-tabs{order:3;width:100%;overflow:auto}.hr-section-tabs button{font-size:12px}.hr-content-head{display:grid}.hr-kpi-row{grid-template-columns:1fr 1fr}.hr-event-grid,.hr-report-grid{grid-template-columns:1fr}}
 
+/* Simplified top bar and compact report controls. */
+#workspace .workspace-topbar>.filters{justify-content:flex-end}
+#workspace:has(.hr-workspace) .workspace-topbar{display:none}
+#workspace .records-pagehead{grid-template-columns:minmax(220px,1fr) minmax(240px,25%) minmax(150px,18%) auto;gap:14px}
+#workspace .records-pagehead .records-head-search{justify-self:stretch}
+#workspace .records-department-filter{display:grid;gap:3px;color:#52657f;font-size:11px;font-weight:650;align-self:center}
+#workspace .records-department-filter select{height:42px;width:100%;background:#f8fafc}
+#workspace .calendar-table th.calendar-day,#workspace .calendar-table td.calendar-day{width:48px;min-width:48px}
+#workspace .calendar-table th.calendar-frozen:nth-child(1),#workspace .calendar-table td.calendar-frozen:nth-child(1){width:160px;min-width:160px}
+#workspace .calendar-table th.calendar-frozen:nth-child(2),#workspace .calendar-table td.calendar-frozen:nth-child(2){left:160px;width:92px;min-width:92px}
+#workspace .calendar-table th.calendar-frozen:nth-child(3),#workspace .calendar-table td.calendar-frozen:nth-child(3){left:252px;width:48px;min-width:48px}
+#workspace .planfact-pair{min-width:44px}
+#workspace .planfact-source{min-width:46px}
+
 /* Dense, readable controls for the extended HR profile. */
 .calendar-table .calendar-nonworking{background:#e8eef7}.calendar-table th.calendar-nonworking{background:#cbd9ea;color:#304d72}
 .hr-form-grid textarea{min-height:92px;padding:10px 12px;resize:vertical}
