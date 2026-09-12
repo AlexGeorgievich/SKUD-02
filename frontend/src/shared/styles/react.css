@@ -136,6 +136,14 @@ aside{overflow-y:auto}aside nav{gap:3px}aside nav button{font-size:14px;padding:
 #workspace .planfact-pair{min-width:44px}
 #workspace .planfact-source{min-width:46px}
 
+/* Information modal: keep the employee name only in the main heading. */
+.dialog-title-group{display:flex;align-items:center;gap:14px;min-width:0}
+.dialog-title-group h2{min-width:0}
+.person-detail-summary{display:flex;align-items:center;justify-content:flex-start;gap:24px;margin:4px 0 16px}
+.person-detail-summary p{margin:0}
+.detail-person-card-link{display:flex;align-items:center;gap:8px;padding:6px 10px;border:0;border-radius:8px;background:#edf4ff;color:#2459b8;font-size:12px;font-weight:650;text-decoration:underline;white-space:nowrap}
+.detail-person-card-link:hover{background:#dfeeff;color:#123f9f}
+
 /* Dense, readable controls for the extended HR profile. */
 .calendar-table .calendar-nonworking{background:#e8eef7}.calendar-table th.calendar-nonworking{background:#cbd9ea;color:#304d72}
 .hr-form-grid textarea{min-height:92px;padding:10px 12px;resize:vertical}

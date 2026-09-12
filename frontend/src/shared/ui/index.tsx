@@ -29,9 +29,9 @@ export function FileDrop({title,file,onFile,disabled=false,onError}:{title:strin
  return <div className="card"><h2>{title}</h2><label className={`drop ${over?'over':''}`} onDragOver={e=>{e.preventDefault();if(!disabled)setOver(true)}} onDragLeave={()=>setOver(false)} onDrop={e=>{e.preventDefault();setOver(false);if(!disabled)accept(e.dataTransfer.files)}}><span aria-hidden="true">⇧</span><strong>Перетащите Excel сюда</strong><span>или выберите файл на компьютере</span><span className="file-picker-row"><span className="file-picker-button" aria-hidden="true">Обзор…</span><span className="filename">{file?`Выбран файл: ${file.name} · ${(file.size/1024).toFixed(1)} КБ`:'Файл не выбран'}</span></span><input className="file-input" type="file" aria-label={title} accept=".xlsx" disabled={disabled} onChange={e=>{accept(e.target.files);e.target.value=''}}/></label></div>
 }
 
-export function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}){
+export function Modal({title,onClose,children,headerAction}:{title:string;onClose:()=>void;children:ReactNode;headerAction?:ReactNode}){
  const ref=useRef<HTMLDialogElement>(null);
  const nativeDialog=typeof HTMLDialogElement!=='undefined'&&typeof HTMLDialogElement.prototype.showModal==='function';
  useEffect(()=>{const prior=document.activeElement as HTMLElement|null;const dialog=ref.current;if(dialog&&typeof dialog.showModal==='function')dialog.showModal();return ()=>{if(dialog&&typeof dialog.close==='function')dialog.close();prior?.focus()}},[]);
- return <dialog ref={ref} open={nativeDialog?undefined:true} onCancel={e=>{e.preventDefault();onClose()}} aria-labelledby="detail-title"><div className="dialog-head"><h2 id="detail-title">{title}</h2><button onClick={onClose}>Закрыть ×</button></div>{children}</dialog>
+ return <dialog ref={ref} open={nativeDialog?undefined:true} onCancel={e=>{e.preventDefault();onClose()}} aria-labelledby="detail-title"><div className="dialog-head"><div className="dialog-title-group"><h2 id="detail-title">{title}</h2>{headerAction}</div><button onClick={onClose}>Закрыть ×</button></div>{children}</dialog>
 }
