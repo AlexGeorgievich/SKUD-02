@@ -91,6 +91,14 @@ class HrRepository:
                 statement = statement.where(HrEmployee.archived_at.is_(None))
             return session.scalar(statement)
 
+    def get_employee_by_name(self, name: str, include_archived: bool = False) -> HrEmployee | None:
+        normalized = name.strip().casefold()
+        if not normalized:
+            return None
+        with self.sessions() as session:
+            employees = session.scalars(select(HrEmployee)).all()
+            return next((employee for employee in employees if employee.plan_name.strip().casefold() == normalized and (include_archived or employee.archived_at is None)), None)
+
     def get_active_employee(self, employee_id: str) -> HrEmployee | None:
         return self.get_employee(employee_id, include_archived=False)
 

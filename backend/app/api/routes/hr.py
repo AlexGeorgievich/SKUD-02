@@ -63,11 +63,13 @@ def create_employee(payload: HrEmployeeCreate, user: dict = Depends(current_user
 
 
 @router.get('/employees/{employee_id}/read-only')
-def employee_read_only(employee_id: str, source: str = Query("timetrack"), user: dict = Depends(current_user), c: Container = Depends(get_container)):
+def employee_read_only(employee_id: str, source: str = Query("timetrack"), name: str | None = Query(None), user: dict = Depends(current_user), c: Container = Depends(get_container)):
     if source != "timetrack":
         raise ServiceError("Недопустимый источник карточки", 400)
     service = required_service(c)
     item = service.repository.get_employee(employee_id)
+    if item is None and name:
+        item = service.repository.get_employee_by_name(name)
     if item is None or not can_view(user, item):
         raise ServiceError('Карточка сотрудника не найдена', 404)
     return serialize(item, mode="read-only")

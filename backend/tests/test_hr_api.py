@@ -76,6 +76,9 @@ class HrApiTests(unittest.TestCase):
             response = client.get(f"/api/hr/employees/{employee.id}/read-only?source=timetrack")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["mode"], "read-only")
+            by_name = client.get("/api/hr/employees/not-the-plan-id/read-only", params={"source": "timetrack", "name": "Иванов Иван"})
+            self.assertEqual(by_name.status_code, 200)
+            self.assertEqual(by_name.json()["plan_employee_id"], "p1")
             self.assertEqual(client.patch(f"/api/hr/employees/{employee.id}?source=timetrack", json={"position": "Юрист"}).status_code, 403)
             client.post("/api/logout")
 
