@@ -124,7 +124,9 @@ aside{overflow-y:auto}aside nav{gap:3px}aside nav button{font-size:14px;padding:
 
 /* Simplified top bar and compact report controls. */
 #workspace .workspace-topbar>.filters{justify-content:flex-end}
-#workspace:has(.hr-workspace) .workspace-topbar{display:none}
+#workspace .workspace-topbar{display:none}
+#workspace main{padding-top:8px}
+#workspace .pagehead{padding-block:9px;margin-bottom:8px}
 #workspace .records-pagehead{grid-template-columns:minmax(220px,1fr) minmax(240px,25%) minmax(150px,18%) auto;gap:14px}
 #workspace .records-pagehead .records-head-search{justify-self:stretch}
 #workspace .records-department-filter{display:grid;gap:3px;color:#52657f;font-size:11px;font-weight:650;align-self:center}
@@ -135,6 +137,11 @@ aside{overflow-y:auto}aside nav{gap:3px}aside nav button{font-size:14px;padding:
 #workspace .calendar-table th.calendar-frozen:nth-child(3),#workspace .calendar-table td.calendar-frozen:nth-child(3){left:252px;width:48px;min-width:48px}
 #workspace .planfact-pair{min-width:44px}
 #workspace .planfact-source{min-width:46px}
+#workspace .plan-legend{padding-block:9px;margin-bottom:8px}
+#workspace .plan-legend h3{font-size:17px}
+#workspace .plan-legend p{margin-bottom:6px;font-size:12px}
+#workspace .plan-legend .status-legend{gap:5px 10px}
+#workspace .records-pagehead .actions{display:flex;align-items:center;gap:7px;white-space:nowrap}
 
 /* Information modal: keep the employee name only in the main heading. */
 .dialog-title-group{display:flex;align-items:center;gap:14px;min-width:0}
