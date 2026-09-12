@@ -66,9 +66,24 @@ it('показывает отказ входа без открытия рабо�
 describe('Кадровое рабочее место',()=>{
  const employee={id:'hr-1',plan_name:'Беляев Харлампий',plan_department:'Accounting Offline',office:null,department:'Accounting Offline',department_status:null,gender:null,birth_year:null,position:null,hire_date:null,work_schedule:null,employment_status:'active'};
  function renderHr(role:'admin'|'hr'|'timekeeper'='hr'){
-  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}})));
+  vi.stubGlobal('fetch',vi.fn(async(url:RequestInfo|URL)=>{
+   const path=String(url);
+   if(path.includes('/calendar'))return new Response(JSON.stringify({items:[{employee_id:'hr-1',employee_name:'Беляев Харлампий',department:'Accounting Offline',date:'2026-09-12',kind:'hire_anniversary'}]}),{status:200,headers:{'Content-Type':'application/json'}});
+   if(path.includes('/analytics'))return new Response(JSON.stringify({total:1,incomplete_cards:1,departments_without_deputy:['Accounting Offline'],departments:['Accounting Offline']}),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}});
+  }));
   return render(<HrPage role={role} notify={vi.fn()}/>);
  }
+ it('переключает разделы Сотрудники, Календарь и Отчёты в шапке кадрового учёта',async()=>{
+  renderHr();await screen.findByText('Беляев Харлампий');
+  expect(screen.getByRole('tab',{name:'Сотрудники'})).toBeTruthy();
+  await userEvent.click(screen.getByRole('tab',{name:'Календарь и юбилеи'}));
+  expect(await screen.findByRole('heading',{name:'Дни рождения и годовщины работы'})).toBeTruthy();
+  expect(screen.getByText('12 сентября')).toBeTruthy();
+  await userEvent.click(screen.getByRole('tab',{name:'Отчёты и аналитика'}));
+  expect(await screen.findByRole('heading',{name:'Отчёты и аналитика'})).toBeTruthy();
+  expect(screen.getByText('Незаполненные карточки')).toBeTruthy();
+ });
  it('показывает компактный реестр с поиском и кадровыми фильтрами',async()=>{
   renderHr();await screen.findByText('Беляев Харлампий');
   expect(screen.getByRole('heading',{name:'HR Персонал'})).toBeTruthy();
@@ -96,10 +111,19 @@ describe('Кадровое рабочее место',()=>{
   vi.stubGlobal('fetch',vi.fn(async(_url,options)=>new Response(JSON.stringify(options?.method==='POST'?created:{items:[employee],count:1}),{status:options?.method==='POST'?201:200,headers:{'Content-Type':'application/json'}})));
   render(<HrPage role="hr" notify={vi.fn()}/>);await screen.findByText('Беляев Харлампий');
   await userEvent.click(screen.getByRole('button',{name:'Добавить сотрудника'}));
-  await userEvent.type(screen.getByLabelText('ФИО нового сотрудника'),'Петров Пётр');
-  await userEvent.type(screen.getByLabelText('Отдел нового сотрудника'),'HR');
-  await userEvent.click(screen.getByRole('button',{name:'Создать карточку'}));
+  const dialog=screen.getByRole('dialog',{name:'Новая карточка сотрудника'});
+  expect(within(dialog).getByRole('tab',{name:'Личные данные'})).toBeTruthy();
+  await userEvent.type(within(dialog).getByLabelText('ФИО из плана'),'Петров Пётр');
+  await userEvent.type(within(dialog).getByLabelText('Отдел'),'HR');
+  await userEvent.click(within(dialog).getByRole('button',{name:'Сохранить'}));
   expect(await screen.findByRole('button',{name:'Петров Пётр'})).toBeTruthy();
+ });
+ it('закрывает новую карточку сотрудника по Escape без сохранения',async()=>{
+  renderHr();await screen.findByText('Беляев Харлампий');
+  await userEvent.click(screen.getByRole('button',{name:'Добавить сотрудника'}));
+  expect(screen.getByRole('dialog',{name:'Новая карточка сотрудника'})).toBeTruthy();
+  await userEvent.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog',{name:'Новая карточка сотрудника'})).toBeNull();
  });
  it('архивирует карточку только после отдельного подтверждения',async()=>{
   vi.stubGlobal('fetch',vi.fn(async(_url,options)=>new Response(JSON.stringify(options?.method==='POST'?{...employee,archived_at:'2026-09-11T00:00:00Z'}:{items:[employee],count:1}),{status:200,headers:{'Content-Type':'application/json'}})));
