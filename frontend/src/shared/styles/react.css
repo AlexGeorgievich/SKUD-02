@@ -142,6 +142,7 @@ aside{overflow-y:auto}aside nav{gap:3px}aside nav button{font-size:14px;padding:
 #workspace .plan-legend p{margin-bottom:6px;font-size:12px}
 #workspace .plan-legend .status-legend{gap:5px 10px}
 #workspace .records-pagehead .actions{display:flex;align-items:center;gap:7px;white-space:nowrap}
+#workspace .records-pagehead .records-head-search,#workspace .records-pagehead .actions{margin-top:18px}
 
 /* Information modal: keep the employee name only in the main heading. */
 .dialog-title-group{display:flex;align-items:center;gap:14px;min-width:0}

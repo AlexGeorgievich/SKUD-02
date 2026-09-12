@@ -43,6 +43,7 @@ class HrEmployeeUpdate(HrSafeModel):
     employment_type: Literal["permanent", "probation"] | None = None
     probation_end_date: date | None = None
     comments: str | None = None
+    responsibility: str | None = None
     work_email: str | None = Field(default=None, max_length=255)
     work_phone: str | None = Field(default=None, max_length=64)
     access_card_number: str | None = Field(default=None, max_length=64)

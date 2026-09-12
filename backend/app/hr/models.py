@@ -46,6 +46,7 @@ class HrEmployee(Base):
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     probation_end_date: Mapped[date | None] = mapped_column(nullable=True)
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsibility: Mapped[str | None] = mapped_column(Text, nullable=True)
     work_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     work_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     access_card_number: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -57,7 +57,7 @@ class HrApiTests(unittest.TestCase):
                 "education_specialty": "Право", "education_graduation_year": 2018,
                 "work_experience": "6 лет", "employment_type": "probation",
                 "probation_end_date": "2026-12-31", "schedule_type": "flexible",
-                "comments": "Наставник назначен",
+                "comments": "Наставник назначен", "responsibility": "Контроль договоров\nКоординация отдела",
             })
             self.assertEqual(response.status_code, 201)
             item = response.json()
@@ -65,6 +65,7 @@ class HrApiTests(unittest.TestCase):
             self.assertEqual(item["employment_type"], "probation")
             self.assertEqual(item["probation_end_date"], "2026-12-31")
             self.assertEqual(item["schedule_type"], "flexible")
+            self.assertEqual(item["responsibility"], "Контроль договоров\nКоординация отдела")
 
     def test_admin_can_edit_but_manager_cannot(self):
         with tempfile.TemporaryDirectory() as tmp:

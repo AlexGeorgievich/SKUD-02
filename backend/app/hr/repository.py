@@ -13,7 +13,7 @@ SAFE_FIELDS = {
     "work_schedule", "department_head_id", "deputy_id", "deputy_from", "deputy_until",
     "education_institution", "education_specialty", "education_graduation_year", "work_experience",
     "personnel_number", "position", "schedule_type", "schedule_hours",
-    "employment_status", "employment_type", "probation_end_date", "comments", "work_email", "work_phone", "access_card_number",
+    "employment_status", "employment_type", "probation_end_date", "comments", "responsibility", "work_email", "work_phone", "access_card_number",
     "access_card_status", "access_level", "work_zones",
 }
 
