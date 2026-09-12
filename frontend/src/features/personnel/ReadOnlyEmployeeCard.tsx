@@ -3,8 +3,8 @@ import {api,ApiError,errorText} from '../../shared/api/client';
 
 type EmployeeCard={
  id:string;plan_name:string;plan_department?:string|null;office?:string|null;department?:string|null;
- position?:string|null;department_status?:string|null;gender?:string|null;birth_year?:number|null;hire_date?:string|null;
- work_schedule?:string|null;employment_status?:string|null;personnel_number?:string|null;work_email?:string|null;
+ position?:string|null;department_status?:string|null;gender?:string|null;birth_year?:number|null;education_institution?:string|null;education_specialty?:string|null;education_graduation_year?:number|null;hire_date?:string|null;
+ work_schedule?:string|null;schedule_type?:string|null;work_experience?:string|null;employment_status?:string|null;employment_type?:string|null;probation_end_date?:string|null;comments?:string|null;personnel_number?:string|null;work_email?:string|null;
  work_phone?:string|null;access_card_number?:string|null;access_card_status?:string|null;access_level?:string|null;mode?:string;
 };
 type Tab='personal'|'work'|'schedule'|'access';
@@ -25,9 +25,9 @@ export function ReadOnlyEmployeeCard({employeeId,employeeName,onClose}:{employee
   <div className="hr-card-tabs" role="tablist">{TABS.map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}</div>
   <div className="hr-card-body"><aside className="hr-photo-panel"><div className="hr-avatar photo" aria-label="Фото сотрудника">{initials(name)||'—'}</div><b>{name}</b><small>{employee?.personnel_number||'Табельный номер не указан'}</small><span className={`hr-status ${employee?.employment_status||'active'}`}>{employee?.employment_status==='inactive'?'Неактивен':employee?.employment_status==='leave'?'В отпуске':'Работает'}</span></aside>
    <div className="hr-form-panel">{error?<div className="hr-card-error" role="alert"><h3>Карточка недоступна</h3><p>{error}</p></div>:!employee?<p role="status">Загружаем кадровую карточку…</p>:<div className="hr-readonly-grid">
-    {tab==='personal'&&<><Value label="ФИО из плана" value={employee.plan_name}/><Value label="Офис" value={employee.office}/><Value label="Отдел" value={employee.department||employee.plan_department}/><Value label="Пол" value={employee.gender}/><Value label="Год рождения" value={employee.birth_year}/><Value label="Дата приёма" value={employee.hire_date}/></>}
-    {tab==='work'&&<><Value label="Должность" value={employee.position}/><Value label="Статус в отделе" value={employee.department_status}/><Value label="Статус занятости" value={employee.employment_status}/></>}
-    {tab==='schedule'&&<Value label="Распорядок работы" value={employee.work_schedule}/>} 
+    {tab==='personal'&&<><Value label="ФИО из плана" value={employee.plan_name}/><Value label="Офис" value={employee.office}/><Value label="Отдел" value={employee.department||employee.plan_department}/><Value label="Пол" value={employee.gender}/><Value label="Год рождения" value={employee.birth_year}/><Value label="Дата приёма" value={employee.hire_date}/><Value label="Учебное заведение" value={employee.education_institution}/><Value label="Специальность" value={employee.education_specialty}/><Value label="Год окончания" value={employee.education_graduation_year}/></>}
+    {tab==='work'&&<><Value label="Должность" value={employee.position}/><Value label="Статус в отделе" value={employee.department_status}/><Value label="Статус занятости" value={employee.employment_status}/><Value label="Статус оформления" value={employee.employment_type==='probation'?'Испытательный срок':employee.employment_type==='permanent'?'Постоянный':employee.employment_type}/><Value label="Дата окончания испытания" value={employee.probation_end_date}/><Value label="Стаж работы" value={employee.work_experience}/></>}
+    {tab==='schedule'&&<><Value label="Распорядок дня" value={{fixed:'Фиксированный график',free:'Свободный график',flexible:'Гибкий график'}[employee.schedule_type||'']||employee.schedule_type}/><Value label="Описание графика" value={employee.work_schedule}/><Value label="Комментарии" value={employee.comments}/></>}
     {tab==='access'&&<><Value label="Табельный номер" value={employee.personnel_number}/><Value label="Рабочий email" value={employee.work_email}/><Value label="Рабочий телефон" value={employee.work_phone}/><Value label="Номер карты СКУД" value={employee.access_card_number}/><Value label="Статус карты" value={employee.access_card_status}/><Value label="Уровень доступа" value={employee.access_level}/></>}
    </div>}</div>
   </div>

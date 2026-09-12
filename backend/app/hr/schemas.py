@@ -25,6 +25,10 @@ class HrEmployeeUpdate(HrSafeModel):
     ] | None = None
     gender: Literal["Не указан", "Женский", "Мужской"] | None = None
     birth_year: int | None = Field(default=None, ge=1900, le=2100)
+    education_institution: str | None = Field(default=None, max_length=255)
+    education_specialty: str | None = Field(default=None, max_length=255)
+    education_graduation_year: int | None = Field(default=None, ge=1900, le=2100)
+    work_experience: str | None = Field(default=None, max_length=128)
     hire_date: date | None = None
     work_schedule: str | None = Field(default=None, max_length=255)
     department_head_id: str | None = Field(default=None, max_length=36)
@@ -36,6 +40,9 @@ class HrEmployeeUpdate(HrSafeModel):
     schedule_type: str | None = Field(default=None, max_length=64)
     schedule_hours: int | None = Field(default=None, ge=0, le=168)
     employment_status: str | None = Field(default=None, max_length=64)
+    employment_type: Literal["permanent", "probation"] | None = None
+    probation_end_date: date | None = None
+    comments: str | None = None
     work_email: str | None = Field(default=None, max_length=255)
     work_phone: str | None = Field(default=None, max_length=64)
     access_card_number: str | None = Field(default=None, max_length=64)

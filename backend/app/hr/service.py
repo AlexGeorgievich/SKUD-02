@@ -58,7 +58,7 @@ class HrService:
     @staticmethod
     def _normalize_values(values: dict) -> dict:
         normalized = dict(values)
-        for key in ("hire_date", "deputy_from", "deputy_until"):
+        for key in ("hire_date", "deputy_from", "deputy_until", "probation_end_date"):
             if isinstance(normalized.get(key), str):
                 normalized[key] = date.fromisoformat(normalized[key])
         return normalized

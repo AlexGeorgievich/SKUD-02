@@ -45,6 +45,27 @@ class HrApiTests(unittest.TestCase):
             client.post("/api/login", json={"username": "manager", "password": "123456789012"})
             self.assertEqual(client.post("/api/hr/employees", json={"plan_name": "Сидоров Сидор", "department": "LAW"}).status_code, 403)
 
+    def test_hr_profile_supports_education_probation_schedule_and_comments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+            response = client.post("/api/hr/employees", json={
+                "plan_name": "Петров Пётр", "department": "LAW", "education_institution": "МГУ",
+                "education_specialty": "Право", "education_graduation_year": 2018,
+                "work_experience": "6 лет", "employment_type": "probation",
+                "probation_end_date": "2026-12-31", "schedule_type": "flexible",
+                "comments": "Наставник назначен",
+            })
+            self.assertEqual(response.status_code, 201)
+            item = response.json()
+            self.assertEqual(item["education_institution"], "МГУ")
+            self.assertEqual(item["employment_type"], "probation")
+            self.assertEqual(item["probation_end_date"], "2026-12-31")
+            self.assertEqual(item["schedule_type"], "flexible")
+
     def test_admin_can_edit_but_manager_cannot(self):
         with tempfile.TemporaryDirectory() as tmp:
             engine = create_engine("sqlite+pysqlite:///:memory:")
