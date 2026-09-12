@@ -235,8 +235,8 @@ describe('Рабочее пространство',()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');await userEvent.click(screen.getByRole('button',{name:'Аналитика и KPI'}));
   const daily=screen.getByTestId('daily-analytics');await userEvent.click(within(daily).getByRole('button',{name:'Все отделы'}));await userEvent.click(within(daily).getByRole('button',{name:'HR'}));
   expect(within(daily).getByRole('heading',{name:'Отдел: HR'})).toBeTruthy();expect(within(daily).queryByRole('button',{name:'Buying'})).toBeNull();
-  await userEvent.click(within(daily).getByRole('button',{name:'Иванов Иван'}));expect(within(daily).getByRole('heading',{name:'Сотрудник: Иванов Иван'})).toBeTruthy();
-  await userEvent.keyboard('{Escape}');expect(within(daily).getByRole('heading',{name:'Отдел: HR'})).toBeTruthy();await userEvent.keyboard('{Escape}');expect(within(daily).getByRole('heading',{name:'Все отделы'})).toBeTruthy();
+  await userEvent.click(within(daily).getByRole('button',{name:'Иванов Иван'}));expect(screen.getByRole('dialog',{name:/Проверка данных — Иванов Иван/})).toBeTruthy();
+  await userEvent.keyboard('{Escape}');expect(screen.queryByRole('dialog')).toBeNull();expect(within(daily).getByRole('heading',{name:'Отдел: HR'})).toBeTruthy();await userEvent.keyboard('{Escape}');expect(within(daily).getByRole('heading',{name:'Все отделы'})).toBeTruthy();
  });
  it('сворачивает таблицы KPI и раскрывает их по строке заголовка',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');await userEvent.click(screen.getByRole('button',{name:'Аналитика и KPI'}));
@@ -336,6 +336,37 @@ describe('Рабочее пространство',()=>{
   expect(screen.getByLabelText('02.08: план О — 1; регистрации — 0')).toBeTruthy();
   await userEvent.click(screen.getByRole('button',{name:'Иванов Иван'}));
   expect(screen.getByRole('dialog')).toBeTruthy();
+ });
+ it('открывает из информационного окна кадровую карточку только для просмотра и возвращается по уровням Escape',async()=>{
+  const fetchMock=vi.fn(async(input:RequestInfo|URL)=>{
+   const url=String(input);
+   if(url.includes('/api/hr/employees/1/read-only'))return new Response(JSON.stringify({
+    id:'hr-1',plan_employee_id:'1',plan_name:'Иванов Иван',plan_department:'HR',office:'PPL Group',department:'HR',
+    position:'HR-специалист',department_status:'Сотрудник',gender:'Мужской',birth_year:1990,hire_date:'2024-02-01',
+    work_schedule:'5/2, 09:00–18:00',employment_status:'active',personnel_number:'001',work_email:'ivanov@example.test',
+    work_phone:'+7 000 000-00-00',access_card_number:'CARD-1',access_card_status:'Активна',access_level:'Офис',mode:'read-only'
+   }),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify(workspaceData),{status:200,headers:{'Content-Type':'application/json'}});
+  });
+  vi.stubGlobal('fetch',fetchMock);const user=userEvent.setup();
+  render(<Workspace user={{username:'timekeeper',role:'timekeeper',role_label:'Специалист УВР'}} onLogout={vi.fn()}/>);
+  await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
+  await user.click(screen.getByRole('button',{name:'План'}));
+  const tableName=screen.getByRole('button',{name:'Иванов Иван'});await user.click(tableName);
+  const detail=screen.getByRole('dialog',{name:/Проверка данных — Иванов Иван/});
+  const cardLink=within(detail).getByRole('button',{name:'Открыть кадровую карточку Иванов Иван'});await user.click(cardLink);
+  const card=await screen.findByRole('dialog',{name:'Кадровая карточка сотрудника Иванов Иван'});
+  expect(within(card).getByText('Только просмотр')).toBeTruthy();
+  await user.click(within(card).getByRole('tab',{name:'Рабочие данные'}));
+  expect(within(card).getByText('HR-специалист')).toBeTruthy();
+  expect(within(card).queryByRole('button',{name:/Сохранить|Удалить|В архив/})).toBeNull();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog',{name:'Кадровая карточка сотрудника Иванов Иван'})).toBeNull();
+  expect(screen.getByRole('dialog',{name:/Проверка данных — Иванов Иван/})).toBeTruthy();
+  expect(document.activeElement).toBe(cardLink);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(tableName);
  });
  it('возвращается по уровням дашборда клавишей Escape',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');const user=userEvent.setup();
