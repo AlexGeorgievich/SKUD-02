@@ -101,6 +101,13 @@ describe('Кадровое рабочее место',()=>{
   expect(within(dialog).getByLabelText('Фото сотрудника')).toBeTruthy();
   expect(within(dialog).getByRole('button',{name:'Сохранить'})).toBeTruthy();
  });
+ it('даёт открыть календарь месяца и года в личной карточке',async()=>{
+  renderHr();await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});
+  expect(within(dialog).getByLabelText('Год рождения').getAttribute('type')).toBe('month');
+  expect(within(dialog).getByRole('button',{name:'Открыть календарь: Год рождения'})).toBeTruthy();
+  expect(within(dialog).getByRole('button',{name:'Открыть календарь: Год окончания'})).toBeTruthy();
+ });
  it('открывает карточку TimeTrack только для просмотра',async()=>{
   renderHr('timekeeper');await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
   expect(screen.getByText(/Только просмотр/)).toBeTruthy();
