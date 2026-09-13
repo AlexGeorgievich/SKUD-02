@@ -87,6 +87,22 @@ class HrApiTests(unittest.TestCase):
             self.assertEqual(item["birth_year"], 1993)
             self.assertEqual(item["education_graduation_year"], 2016)
 
+    def test_hr_can_create_department_and_assign_its_head(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            employee = app.state.container.hr.repository.create_manual_employee("Иванов Иван", "HR")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+
+            response = client.post("/api/hr/departments", json={"name": "Новый отдел", "head_id": employee.id})
+
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["name"], "Новый отдел")
+            self.assertEqual(response.json()["head_id"], employee.id)
+            self.assertEqual(client.get("/api/hr/departments").json()["items"][0]["name"], "Новый отдел")
+
     def test_admin_can_edit_but_manager_cannot(self):
         with tempfile.TemporaryDirectory() as tmp:
             engine = create_engine("sqlite+pysqlite:///:memory:")

@@ -59,5 +59,10 @@ class HrEmployeeCreate(HrEmployeeUpdate):
     department: str = Field(min_length=1, max_length=255)
 
 
+class HrDepartmentCreate(HrSafeModel):
+    name: str = Field(min_length=1, max_length=255)
+    head_id: str | None = Field(default=None, max_length=36)
+
+
 class HrImportRows(HrSafeModel):
     rows: list[dict] = Field(default_factory=list, max_length=3000)

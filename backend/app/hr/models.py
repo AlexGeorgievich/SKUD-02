@@ -59,6 +59,15 @@ class HrEmployee(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
 
+class HrDepartment(Base):
+    __tablename__ = "hr_departments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    head_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
 class HrBootstrapState(Base):
     __tablename__ = "hr_bootstrap_state"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

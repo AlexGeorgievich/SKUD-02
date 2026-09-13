@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import HrAuditLog, HrBootstrapState, HrEmployee, HrPlanSync, utcnow
+from .models import HrAuditLog, HrBootstrapState, HrDepartment, HrEmployee, HrPlanSync, utcnow
 
 
 SAFE_FIELDS = {
@@ -108,6 +108,17 @@ class HrRepository:
             archive_filter = HrEmployee.archived_at.is_not(None) if archived else HrEmployee.archived_at.is_(None)
             statement = select(HrEmployee).where(archive_filter).order_by(HrEmployee.department, HrEmployee.plan_name)
             return list(session.scalars(statement).all())
+
+    def list_departments(self) -> list[HrDepartment]:
+        with self.sessions() as session:
+            return list(session.scalars(select(HrDepartment).order_by(HrDepartment.name)).all())
+
+    def create_department(self, name: str, head_id: str | None = None) -> HrDepartment:
+        with self.sessions.begin() as session:
+            department = HrDepartment(name=name.strip(), head_id=head_id)
+            session.add(department)
+            session.flush()
+            return department
 
     def archive_employee(self, employee_id: str, author: str) -> HrEmployee:
         with self.sessions.begin() as session:

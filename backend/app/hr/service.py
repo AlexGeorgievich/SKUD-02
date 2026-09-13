@@ -39,6 +39,13 @@ class HrService:
         self.repository.add_audit(author, "create", "employee", employee.id, values, "manual")
         return employee
 
+    def create_department(self, name: str, head_id: str | None, author: str):
+        if head_id and self.repository.get_active_employee(head_id) is None:
+            raise ValueError("Руководитель отдела не найден")
+        department = self.repository.create_department(name, head_id)
+        self.repository.add_audit(author, "create", "department", department.id, {"name": department.name, "head_id": head_id}, "manual")
+        return department
+
     def update_employee(self, employee_id: str, values: dict, author: str) -> HrEmployee:
         values = self._normalize_values(values)
         updated = self.repository.update_safe_fields(employee_id, values)

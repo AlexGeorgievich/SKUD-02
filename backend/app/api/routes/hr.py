@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from ...container import Container
 from ...domain.errors import ServiceError
 from ..dependencies import current_user, get_container
-from ...hr.schemas import HrEmployeeCreate, HrEmployeeUpdate, HrImportRows
+from ...hr.schemas import HrDepartmentCreate, HrEmployeeCreate, HrEmployeeUpdate, HrImportRows
 
 router = APIRouter(prefix='/api/hr', tags=['hr'])
 
@@ -49,6 +49,23 @@ def employees(archived: bool = False, user: dict = Depends(current_user), c: Con
     service = required_service(c)
     items = [employee for employee in service.repository.list_employees(archived=archived) if can_view(user, employee)]
     return {'items': [serialize(employee) for employee in items], 'count': len(items)}
+
+
+@router.get('/departments')
+def departments(user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr', 'timekeeper', 'executive', 'auditor', 'manager'):
+        raise ServiceError('Нет права на просмотр отделов', 403)
+    return {'items': [serialize(department) for department in required_service(c).repository.list_departments()]}
+
+
+@router.post('/departments', status_code=201)
+def create_department(payload: HrDepartmentCreate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на создание отдела', 403)
+    try:
+        return serialize(required_service(c).create_department(payload.name, payload.head_id, user['username']))
+    except ValueError as error:
+        raise ServiceError(str(error), 400)
 
 
 @router.post('/employees', status_code=201)
