@@ -81,8 +81,8 @@ describe('Кадровое рабочее место',()=>{
   expect(await screen.findByRole('heading',{name:'Дни рождения и годовщины работы'})).toBeTruthy();
   expect(screen.getByText('12 сентября')).toBeTruthy();
   await userEvent.click(screen.getByRole('tab',{name:'Отчёты и аналитика'}));
-  expect(await screen.findByRole('heading',{name:'Отчёты и аналитика'})).toBeTruthy();
-  expect(screen.getByText('Незаполненные карточки')).toBeTruthy();
+  expect(await screen.findByRole('heading',{name:/Сводные отчёты по персоналу/})).toBeTruthy();
+  expect(screen.getByText('Испыт. срок')).toBeTruthy();
  });
  it('показывает компактный реестр с поиском и кадровыми фильтрами',async()=>{
   renderHr();await screen.findByText('Беляев Харлампий');
@@ -113,8 +113,8 @@ describe('Кадровое рабочее место',()=>{
   await userEvent.click(screen.getByRole('button',{name:'Добавить сотрудника'}));
   const dialog=screen.getByRole('dialog',{name:'Новая карточка сотрудника'});
   expect(within(dialog).getByRole('tab',{name:'Личные данные'})).toBeTruthy();
-  await userEvent.type(within(dialog).getByLabelText('ФИО из плана'),'Петров Пётр');
-  await userEvent.type(within(dialog).getByLabelText('Отдел'),'HR');
+  await userEvent.type(within(dialog).getByLabelText('ФИО'),'Петров Пётр');
+  await userEvent.selectOptions(within(dialog).getByLabelText('Отдел'),'Accounting Offline');
   await userEvent.click(within(dialog).getByRole('button',{name:'Сохранить'}));
   expect(await screen.findByRole('button',{name:'Петров Пётр'})).toBeTruthy();
  });
@@ -258,10 +258,10 @@ describe('Рабочее пространство',()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
   expect(document.querySelector('#workspace header')).toBeTruthy();
  });
- it('расшифровывает коды над месячной таблицей',async()=>{
+ it('не дублирует текстовую легенду над месячной таблицей',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');
   await userEvent.click(screen.getByRole('button',{name:'За месяц'}));
-  expect(screen.getByText('О — офис · Д — дистанционная работа · Отп — отпуск · Б — больничный · От — отгул · Вых — выходной')).toBeTruthy();
+  expect(screen.queryByText('О — офис · Д — дистанционная работа · Отп — отпуск · Б — больничный · От — отгул · Вых — выходной')).toBeNull();
  });
  it('показывает день недели и выделяет выходные колонки в календарных таблицах',async()=>{
   renderWorkspace();await screen.findByText('Загруженный период: 2026-08 · Дата анализа: 2026-08-31');await userEvent.click(screen.getByRole('button',{name:'План'}));
