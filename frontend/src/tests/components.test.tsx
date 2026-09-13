@@ -92,6 +92,18 @@ describe('Кадровое рабочее место',()=>{
   expect(screen.getByLabelText('Фильтр по статусу')).toBeTruthy();
   expect(screen.getByText('Найдено: 1')).toBeTruthy();
  });
+ it('применяет фильтр отдела по клику на названии отдела в сводке',async()=>{
+  const second={...employee,id:'hr-2',plan_name:'Петров Пётр',department:'HR',plan_department:'HR'};
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({items:[employee,second],count:2}),{status:200,headers:{'Content-Type':'application/json'}})));
+  render(<HrPage role="hr" notify={vi.fn()}/>);await screen.findByText('Петров Пётр');
+  await userEvent.click(screen.getByRole('button',{name:/HR 1/}));
+  expect((screen.getByLabelText('Фильтр по отделу') as HTMLSelectElement).value).toBe('HR');
+  expect(screen.queryByRole('button',{name:'Беляев Харлампий'})).toBeNull();
+ });
+ it('выделяет ФИО в таблице отдельным увеличенным стилем',async()=>{
+  renderHr();const person=await screen.findByRole('button',{name:'Беляев Харлампий'});
+  expect(person.querySelector('.hr-person-name')).toBeTruthy();
+ });
  it('открывает широкую карточку с вкладками и компактным фото',async()=>{
   renderHr();await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
   const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});
