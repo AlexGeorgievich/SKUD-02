@@ -65,12 +65,15 @@ class HrService:
     @staticmethod
     def _normalize_values(values: dict) -> dict:
         normalized = dict(values)
-        for key in ("hire_date", "deputy_from", "deputy_until", "probation_end_date"):
+        for key in ("birth_date", "education_graduation_date", "hire_date", "deputy_from", "deputy_until", "probation_end_date"):
             if isinstance(normalized.get(key), str):
                 normalized[key] = date.fromisoformat(normalized[key])
         for month_key, year_key in (("birth_month", "birth_year"), ("education_graduation_month", "education_graduation_year")):
             if normalized.get(month_key):
                 normalized[year_key] = int(normalized[month_key][:4])
+        for date_key, year_key in (("birth_date", "birth_year"), ("education_graduation_date", "education_graduation_year")):
+            if normalized.get(date_key):
+                normalized[year_key] = normalized[date_key].year
         return normalized
 
     def analytics(self) -> dict:

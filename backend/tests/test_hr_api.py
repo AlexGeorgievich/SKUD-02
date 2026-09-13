@@ -87,6 +87,25 @@ class HrApiTests(unittest.TestCase):
             self.assertEqual(item["birth_year"], 1993)
             self.assertEqual(item["education_graduation_year"], 2016)
 
+    def test_hr_can_store_full_birth_and_graduation_dates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))
+            Base.metadata.create_all(app.state.container.hr.repository.engine)
+            app.state.container.auth.create_user("hr", "123456789012", "hr")
+            client = TestClient(app, base_url="http://localhost")
+            client.post("/api/login", json={"username": "hr", "password": "123456789012"})
+            response = client.post("/api/hr/employees", json={
+                "plan_name": "Сидоров Сергей", "department": "HR",
+                "birth_date": "1993-10-20", "education_graduation_date": "2016-06-30",
+            })
+
+            self.assertEqual(response.status_code, 201)
+            item = response.json()
+            self.assertEqual(item["birth_date"], "1993-10-20")
+            self.assertEqual(item["education_graduation_date"], "2016-06-30")
+            self.assertEqual(item["birth_year"], 1993)
+            self.assertEqual(item["education_graduation_year"], 2016)
+
     def test_hr_can_create_department_and_assign_its_head(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = create_app(Settings(data_dir=Path(tmp), database_url="sqlite+pysqlite:///:memory:"))

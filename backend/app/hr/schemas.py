@@ -26,10 +26,12 @@ class HrEmployeeUpdate(HrSafeModel):
     gender: Literal["Не указан", "Женский", "Мужской"] | None = None
     birth_year: int | None = Field(default=None, ge=1900, le=2100)
     birth_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    birth_date: date | None = None
     education_institution: str | None = Field(default=None, max_length=255)
     education_specialty: str | None = Field(default=None, max_length=255)
     education_graduation_year: int | None = Field(default=None, ge=1900, le=2100)
     education_graduation_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    education_graduation_date: date | None = None
     work_experience: str | None = Field(default=None, max_length=128)
     hire_date: date | None = None
     work_schedule: str | None = Field(default=None, max_length=255)
