@@ -1,5 +1,7 @@
 # Frontend
 
+> В ветке `feature/hr-lifecycle-admin` frontend содержит модули `features/hr`, `features/personnel` и `features/admin`. Актуальные сценарии: [../docs/CURRENT_STATE.md](../docs/CURRENT_STATE.md).
+
 Из этой папки: `npm ci`, `npm run build`, `npm test`. Для автоматической пересборки: `npm run watch`; страницу обслуживает Python на 127.0.0.1:8000.
 
 | Каталог | Назначение |

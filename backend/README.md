@@ -1,5 +1,7 @@
 # Backend
 
+> В ветке `feature/hr-lifecycle-admin` backend дополнен маршрутами `/api/hr/*` и `/api/admin/*`, PostgreSQL-кадрами и резервным копированием. См. [../docs/CURRENT_STATE.md](../docs/CURRENT_STATE.md).
+
 Python/FastAPI. Запуск из корня проекта:
 
 ```powershell

@@ -1,5 +1,7 @@
 # HR Personnel PostgreSQL Integration Implementation Plan
 
+> Historical implementation plan. The current implementation status and operational limits are in [../../CURRENT_STATE.md](../../CURRENT_STATE.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Docker-hosted PostgreSQL personnel registry to TimeTrack Pro while keeping plan data authoritative for employee name and department.

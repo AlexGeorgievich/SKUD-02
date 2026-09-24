@@ -1,5 +1,7 @@
 # HR Lifecycle and Administration Implementation Plan
 
+> Historical implementation plan. Its completed and outstanding work is superseded by the current status document: [../../CURRENT_STATE.md](../../CURRENT_STATE.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver an independent personnel module with a one-time Plan bootstrap, safe editable employee cards, read-only TimeTrack drill-down, and administrator operations for users, audit, and PostgreSQL backup.
