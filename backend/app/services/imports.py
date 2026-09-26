@@ -8,6 +8,7 @@ from ..infrastructure.excel.reader import read_input
 from ..infrastructure.excel.generator import generate
 from .ports import Repository
 from .reconciliation import process
+from ..hr.matching import preview_source
 
 class ImportService:
     def __init__(self, repository: Repository, hr_service=None):
@@ -25,15 +26,24 @@ class ImportService:
     def run(self, user: dict, plan: bytes, fact: bytes, period: str, asof: date, preview: bool = False) -> dict:
         if user['role'] not in WRITERS:
             raise ServiceError('Нет права на импорт', 403)
+        rows = [read_input(b, kind, period) for b, kind in ((plan, 'plan'), (fact, 'fact'))]
+        match = None
+        if self.hr_service is not None:
+            roster = self.hr_service.repository.list_employees()
+            plan_preview = preview_source(rows[0], 'plan', roster)
+            fact_preview = preview_source(rows[1], 'fact', roster)
+            match = {
+                'plan': [item.__dict__ for item in plan_preview],
+                'fact': [item.__dict__ for item in fact_preview],
+                'requires_review': sum(item.status != 'matched' for item in plan_preview + fact_preview),
+            }
         if preview:
-            rows = [read_input(b, kind, period) for b, kind in ((plan, 'plan'), (fact, 'fact'))]
-            return dict(plan_count=len(rows[0]), fact_count=len(rows[1]), plan=rows[0][:8], fact=rows[1][:8])
+            return dict(plan_count=len(rows[0]), fact_count=len(rows[1]), plan=rows[0][:8], fact=rows[1][:8], matching=match)
+        if match and match['requires_review']:
+            raise ServiceError('Есть неизвестные или неоднозначные строки; выполните preview и ручное сопоставление', 409)
         if asof > date.today():
             raise ServiceError('Дата анализа не может быть в будущем')
         result, identities = process(plan, fact, period, base64.urlsafe_b64decode(self.repository.key()), asof)
         self.repository.save_snapshot(result, identities)
-        if self.hr_service is not None:
-            plan_rows = read_input(plan, 'plan', period)
-            self.hr_service.bootstrap_from_plan(plan_rows, period, user['username'])
         self.repository.audit(user, 'Импорт ' + period)
         return {'ok': True, 'employees': len(result['employees']), 'unmatched': len(result['unmatched'])}

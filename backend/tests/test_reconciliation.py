@@ -23,9 +23,11 @@ class CoreTests(unittest.TestCase):
         self.assertNotEqual(core.token('Семёнов Иван',self.key),core.token('Семенов Иван',self.key))
     def test_period_reject(self):
         with self.assertRaises(ValueError):core.read_input(self.p,'plan','2026-07')
-    def test_duplicate_reject(self):
+    def test_duplicate_rows_are_preserved_for_matching_preview(self):
         wb=load_workbook(io.BytesIO(self.p));wb.active['B6']=wb.active['B5'].value
-        with self.assertRaises(ValueError):core.read_input(core.bytes_wb(wb),'plan','2026-08')
+        rows=core.read_input(core.bytes_wb(wb),'plan','2026-08')
+        self.assertEqual(rows[0]['normalized'],rows[1]['normalized'])
+        self.assertNotEqual(rows[0]['row_number'],rows[1]['row_number'])
     def test_incomplete_and_invalid(self):
         self.assertIsNone(core.parse_event('09:00\n—\n--\n*')['minutes'])
         self.assertTrue(core.parse_event('25:00\n18:00\n--\n8:00')['issue'])
