@@ -1,13 +1,14 @@
 import base64
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from ...container import Container
 from ...domain.errors import ServiceError
 from ..dependencies import current_user, get_container
-from ...hr.schemas import HrDepartmentCreate, HrEmployeeCreate, HrEmployeeUpdate, HrImportRows
+from ...hr.schemas import HrDepartmentCreate, HrEmployeeCreate, HrEmployeeUpdate, HrImportRows, HrXlsxApply
 from ...domain.identity import token
 from ...hr.photos import MAX_PHOTO_BYTES, image_extension, photo_file, save_photo
+from ...hr.import_service import HrXlsxService
 
 router = APIRouter(prefix='/api/hr', tags=['hr'])
 
@@ -230,3 +231,41 @@ def import_apply(payload: HrImportRows, user: dict = Depends(current_user), c: C
     if user['role'] not in ('admin', 'hr'):
         raise ServiceError('Нет права на кадровый импорт', 403)
     return required_service(c).apply_rows(payload.rows, user['username'])
+
+
+@router.post('/xlsx/preview')
+async def xlsx_preview(file: UploadFile = File(...), user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на кадровый импорт', 403)
+    blob = await file.read(c.settings.upload_limit + 1)
+    if len(blob) > c.settings.upload_limit:
+        raise ServiceError('Файл превышает допустимый размер', 413)
+    try:
+        return HrXlsxService(required_service(c).repository).preview(blob, user['username'])
+    except ValueError as error:
+        raise ServiceError(str(error), 400)
+
+
+@router.post('/xlsx/apply')
+def xlsx_apply(payload: HrXlsxApply, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на кадровый импорт', 403)
+    try:
+        return HrXlsxService(required_service(c).repository).apply(payload.batch_id, payload.confirm_archive_ids, user['username'])
+    except KeyError:
+        raise ServiceError('Пакет preview не найден', 404)
+    except ValueError as error:
+        raise ServiceError(str(error), 400)
+
+
+@router.get('/xlsx/export')
+def xlsx_export(user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    if user['role'] not in ('admin', 'hr'):
+        raise ServiceError('Нет права на кадровый экспорт', 403)
+    blob = HrXlsxService(required_service(c).repository).export()
+    required_service(c).repository.add_audit(user['username'], 'hr_xlsx_export', 'registry', 'active', None, 'hr_export')
+    return Response(
+        content=blob,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename="HR-export.xlsx"'},
+    )

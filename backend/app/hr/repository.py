@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import uuid4
 from json import dumps, loads
 
@@ -5,7 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import HrAuditLog, HrBootstrapState, HrCatalogValue, HrDepartment, HrEmployee, HrLegalEntity, HrOffice, HrPlanSync, utcnow
+from .models import HrAuditLog, HrBootstrapState, HrCatalogValue, HrDepartment, HrEmployee, HrImportBatch, HrLegalEntity, HrOffice, HrPlanSync, utcnow
 
 
 SAFE_FIELDS = {
@@ -83,6 +84,99 @@ class HrRepository:
                 "legal_entities": list(session.scalars(select(HrLegalEntity).order_by(HrLegalEntity.name))),
                 "values": list(session.scalars(select(HrCatalogValue).order_by(HrCatalogValue.kind, HrCatalogValue.label))),
             }
+
+    def create_import_batch(self, author: str, diagnostics: dict, error_count: int) -> HrImportBatch:
+        with self.sessions.begin() as session:
+            batch = HrImportBatch(author=author, status="invalid" if error_count else "preview", error_count=error_count, diagnostics=diagnostics)
+            session.add(batch)
+            session.flush()
+            return batch
+
+    def get_import_batch(self, batch_id: str) -> HrImportBatch | None:
+        with self.sessions() as session:
+            return session.get(HrImportBatch, batch_id)
+
+    def apply_import_batch(self, batch_id: str, confirm_archive_ids: set[str]) -> dict:
+        with self.sessions.begin() as session:
+            batch = session.get(HrImportBatch, batch_id)
+            if batch is None:
+                raise KeyError(batch_id)
+            if batch.status == "applied":
+                return {"created": batch.created_count, "updated": batch.updated_count, "archived": 0, "status": "already_applied"}
+            if batch.error_count:
+                raise ValueError("Импорт содержит ошибки; исправьте файл и повторите preview")
+            payload = batch.diagnostics or {}
+            required_archives = set(payload.get("archive_candidates", []))
+            if required_archives - confirm_archive_ids:
+                raise ValueError("Подтвердите архивирование отсутствующих в полном файле сотрудников")
+
+            def catalog(model, name: str | None, kind: str | None = None):
+                if not name:
+                    return None
+                statement = select(model).where(model.name == name) if hasattr(model, "name") else select(model).where(model.kind == kind, model.label == name)
+                item = session.scalar(statement)
+                if item is None:
+                    item = model(name=name) if hasattr(model, "name") else model(kind=kind, label=name)
+                    session.add(item)
+                    session.flush()
+                return item
+
+            created = updated = archived = 0
+            for row in payload.get("rows", []):
+                values = dict(row["values"])
+                for field in ("hire_date", "probation_end_date", "birth_date"):
+                    if values.get(field):
+                        values[field] = date.fromisoformat(values[field])
+                department = catalog(HrDepartment, values.pop("department", None))
+                legal_entity = catalog(HrLegalEntity, values.pop("legal_entity", None))
+                gender = catalog(HrCatalogValue, values.pop("gender_label", None), "gender")
+                work_format = catalog(HrCatalogValue, values.pop("work_format", None), "work_format")
+                if department:
+                    values.update(department_id=department.id, department=department.name)
+                if legal_entity:
+                    values["legal_entity_id"] = legal_entity.id
+                if gender:
+                    values.update(gender_id=gender.id, gender=gender.label)
+                if work_format:
+                    values["work_format_id"] = work_format.id
+                employee = session.get(HrEmployee, row.get("employee_id")) if row.get("employee_id") else None
+                if employee is None:
+                    employee = HrEmployee(
+                        plan_employee_id=f"manual:{uuid4()}", plan_name=values["plan_name"],
+                        plan_department=values.get("department") or "", department=values.get("department"),
+                        in_current_plan=False,
+                    )
+                    session.add(employee)
+                    created += 1
+                else:
+                    updated += 1
+                for key, value in values.items():
+                    if key in SAFE_FIELDS:
+                        setattr(employee, key, value)
+            for employee_id in required_archives:
+                employee = session.get(HrEmployee, employee_id)
+                if employee is not None and employee.archived_at is None:
+                    employee.archived_at = utcnow()
+                    employee.archived_by = batch.author
+                    archived += 1
+            batch.status = "applied"
+            batch.created_count = created
+            batch.updated_count = updated
+            return {"created": created, "updated": updated, "archived": archived, "status": "applied"}
+
+    def export_employee_rows(self) -> list[dict]:
+        with self.sessions() as session:
+            rows = []
+            for employee in session.scalars(select(HrEmployee).where(HrEmployee.archived_at.is_(None)).order_by(HrEmployee.department, HrEmployee.plan_name)):
+                item = {column.name: getattr(employee, column.name) for column in employee.__table__.columns}
+                if employee.legal_entity_id:
+                    entity = session.get(HrLegalEntity, employee.legal_entity_id)
+                    item["legal_entity"] = entity.name if entity else None
+                if employee.work_format_id:
+                    value = session.get(HrCatalogValue, employee.work_format_id)
+                    item["work_format"] = value.label if value else None
+                rows.append(item)
+            return rows
 
     def validate_card_values(self, values: dict, employee_id: str | None = None) -> dict:
         checked = dict(values)

@@ -108,3 +108,8 @@ class HrDepartmentCreate(HrSafeModel):
 
 class HrImportRows(HrSafeModel):
     rows: list[dict] = Field(default_factory=list, max_length=3000)
+
+
+class HrXlsxApply(HrSafeModel):
+    batch_id: str = Field(min_length=1, max_length=36)
+    confirm_archive_ids: list[str] = Field(default_factory=list, max_length=5000)

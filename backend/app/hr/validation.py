@@ -17,6 +17,8 @@ def normalize_contact(kind: str, value: str | None) -> str | None:
             raise ValueError("Укажите корректный адрес электронной почты")
         return cleaned.lower()
     if kind == "telegram":
+        if cleaned.startswith("t.me/"):
+            cleaned = "https://" + cleaned
         if cleaned.startswith("https://t.me/"):
             parsed = urlparse(cleaned)
             if parsed.query or parsed.fragment or parsed.path.count("/") != 1:
