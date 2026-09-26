@@ -5,16 +5,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import HrAuditLog, HrBootstrapState, HrDepartment, HrEmployee, HrPlanSync, utcnow
+from .models import HrAuditLog, HrBootstrapState, HrCatalogValue, HrDepartment, HrEmployee, HrLegalEntity, HrOffice, HrPlanSync, utcnow
 
 
 SAFE_FIELDS = {
-    "plan_name", "department", "office", "department_status", "gender", "birth_year", "birth_month", "birth_date", "hire_date",
+    "plan_name", "family_name", "given_name", "patronymic", "department", "department_id", "office", "office_id",
+    "legal_entity_id", "gender_id", "work_format_id", "department_status", "gender", "birth_year", "birth_month", "birth_date", "hire_date",
     "work_schedule", "department_head_id", "deputy_id", "deputy_from", "deputy_until",
     "education_institution", "education_specialty", "education_graduation_year", "education_graduation_month", "education_graduation_date", "work_experience",
-    "personnel_number", "position", "schedule_type", "schedule_hours",
+    "personnel_number", "position", "position_en", "schedule_type", "schedule_hours",
     "employment_status", "employment_type", "probation_end_date", "comments", "responsibility", "work_email", "work_phone", "access_card_number",
-    "access_card_status", "access_level", "work_zones",
+    "access_card_status", "access_level", "work_zones", "telegram", "personal_phone", "business_card",
+    "academic_degree", "recommendation", "recruiter", "photo_source_url", "mail_image_url", "insurance",
 }
 
 
@@ -57,7 +59,7 @@ class HrRepository:
             session.flush()
             return employee
 
-    def create_manual_employee(self, name: str, department: str) -> HrEmployee:
+    def create_manual_employee(self, name: str, department: str, values: dict | None = None) -> HrEmployee:
         with self.sessions.begin() as session:
             employee = HrEmployee(
                 plan_employee_id=f"manual:{uuid4()}",
@@ -66,9 +68,66 @@ class HrRepository:
                 department=department,
                 in_current_plan=False,
             )
+            for key, value in (values or {}).items():
+                if key in SAFE_FIELDS and key not in {"plan_name", "department"}:
+                    setattr(employee, key, value)
             session.add(employee)
             session.flush()
             return employee
+
+    def catalog_items(self) -> dict[str, list]:
+        with self.sessions() as session:
+            return {
+                "offices": list(session.scalars(select(HrOffice).order_by(HrOffice.name))),
+                "departments": list(session.scalars(select(HrDepartment).order_by(HrDepartment.name))),
+                "legal_entities": list(session.scalars(select(HrLegalEntity).order_by(HrLegalEntity.name))),
+                "values": list(session.scalars(select(HrCatalogValue).order_by(HrCatalogValue.kind, HrCatalogValue.label))),
+            }
+
+    def validate_card_values(self, values: dict, employee_id: str | None = None) -> dict:
+        checked = dict(values)
+        with self.sessions() as session:
+            references = {
+                "office_id": HrOffice, "department_id": HrDepartment,
+                "legal_entity_id": HrLegalEntity, "gender_id": HrCatalogValue,
+                "work_format_id": HrCatalogValue,
+            }
+            objects = {}
+            for field, model in references.items():
+                identifier = checked.get(field)
+                if identifier:
+                    item = session.get(model, identifier)
+                    if item is None:
+                        raise ValueError(f"Неизвестное значение справочника: {field}")
+                    objects[field] = item
+            if "gender_id" in objects and objects["gender_id"].kind != "gender":
+                raise ValueError("Неверное значение пола")
+            if "work_format_id" in objects and objects["work_format_id"].kind != "work_format":
+                raise ValueError("Неверный формат работы")
+            department = objects.get("department_id")
+            office = objects.get("office_id")
+            if department and office and department.office_id and department.office_id != office.id:
+                raise ValueError("Отдел не относится к выбранному офису")
+            if department:
+                checked["department"] = department.name
+                if department.office_id and not office:
+                    office = session.get(HrOffice, department.office_id)
+                    checked["office_id"] = department.office_id
+            if office:
+                checked["office"] = office.name
+            number = checked.get("personnel_number")
+            if number and session.scalar(select(HrEmployee.id).where(
+                HrEmployee.personnel_number == number,
+                HrEmployee.id != employee_id if employee_id else HrEmployee.id.is_not(None),
+            ).limit(1)):
+                raise ValueError("Табельный номер уже назначен другому сотруднику")
+            head_id = checked.get("department_head_id")
+            if head_id:
+                head = session.get(HrEmployee, head_id)
+                department_name = checked.get("department")
+                if head is None or head.archived_at is not None or (department_name and head.department != department_name):
+                    raise ValueError("Руководитель должен быть действующим сотрудником выбранного отдела")
+        return checked
 
     def is_bootstrap_complete(self) -> bool:
         with self.sessions() as session:
@@ -149,6 +208,13 @@ class HrRepository:
             for key, value in values.items():
                 setattr(employee, key, value)
             return employee
+
+    def set_photo_path(self, employee_id: str, name: str) -> None:
+        with self.sessions.begin() as session:
+            employee = session.get(HrEmployee, employee_id)
+            if employee is None:
+                raise KeyError(employee_id)
+            employee.photo_path = name
 
     def add_audit(self, author: str, action: str, object_type: str, object_id: str, changed_fields: dict | None, source: str) -> None:
         with self.sessions.begin() as session:

@@ -14,7 +14,11 @@ def main():
     add.add_argument('username')
     add.add_argument('--role', choices=ROLES, default='admin')
     add.add_argument('--department', default='')
+    add.add_argument('--department-id', default='')
     add.add_argument('--employee', default='')
+    add.add_argument('--employee-uuid', default='')
+    add.add_argument('--office', default='')
+    add.add_argument('--office-id', default='')
     gen = sub.add_parser('generate')
     gen.add_argument('--period', default='2026-08')
     gen.add_argument('--out', default='demo')
@@ -34,7 +38,10 @@ def main():
             password = getpass.getpass('Пароль (12–200 символов): ')
             if password != getpass.getpass('Повторите пароль: '):
                 raise ServiceError('Пароли не совпадают')
-            c.auth.create_user(args.username, password, args.role, args.department, args.employee)
+            c.auth.create_user(
+                args.username, password, args.role, args.department, args.employee,
+                args.employee_uuid, args.office, args.department_id, args.office_id,
+            )
             print('Пользователь создан:', args.username)
     except (ServiceError, ValueError) as exc:
         parser.exit(1, str(exc) + '\n')

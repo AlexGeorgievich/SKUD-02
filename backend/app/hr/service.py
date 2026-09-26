@@ -28,14 +28,14 @@ class HrService:
         return {"status": "applied", "created": created, "period": period}
 
     def create_employee(self, values: dict, author: str) -> HrEmployee:
-        name = str(values.get("plan_name") or "").strip()
+        values = self._normalize_values(values)
+        values = self.repository.validate_card_values(values)
+        name = " ".join(part.strip() for part in (values.get("family_name"), values.get("given_name"), values.get("patronymic")) if part)
+        name = name or str(values.get("plan_name") or "").strip()
         department = str(values.get("department") or "").strip()
         if not name or not department:
             raise ValueError("Для карточки сотрудника укажите ФИО и отдел")
-        employee = self.repository.create_manual_employee(name, department)
-        updates = self._normalize_values({key: value for key, value in values.items() if key in SAFE_FIELDS and key not in {"plan_name", "department"}})
-        if updates:
-            employee = self.repository.update_safe_fields(employee.id, updates)
+        employee = self.repository.create_manual_employee(name, department, values)
         self.repository.add_audit(author, "create", "employee", employee.id, values, "manual")
         return employee
 
@@ -48,6 +48,17 @@ class HrService:
 
     def update_employee(self, employee_id: str, values: dict, author: str) -> HrEmployee:
         values = self._normalize_values(values)
+        current = self.repository.get_employee(employee_id)
+        if current is None:
+            raise KeyError(employee_id)
+        values = self.repository.validate_card_values({
+            **{key: getattr(current, key) for key in ("department_id", "office_id", "department", "office")},
+            **values,
+        }, employee_id)
+        if any(key in values for key in ("family_name", "given_name", "patronymic")):
+            parts = [values.get(key, getattr(current, key)) for key in ("family_name", "given_name", "patronymic")]
+            if parts[0] and parts[1]:
+                values["plan_name"] = " ".join(part.strip() for part in parts if part)
         updated = self.repository.update_safe_fields(employee_id, values)
         self.repository.add_audit(author, "update", "employee", employee_id, values, "manual")
         return updated

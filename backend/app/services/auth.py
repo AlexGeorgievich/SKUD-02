@@ -50,19 +50,23 @@ class AuthService:
         with self._lock:
             self.sessions.pop(session, None)
 
-    def create_user(self, username: str, password: str, role: str, department: str = '', employee: str = '') -> None:
+    def create_user(self, username: str, password: str, role: str, department: str = '', employee: str = '',
+                    employee_uuid: str = '', office: str = '', department_id: str = '', office_id: str = '') -> None:
         if not username.strip() or len(username) > 100 or role not in ROLES:
             raise ServiceError('Некорректный логин или роль')
         minimum = 3 if os.environ.get('TIMETRACK_ALLOW_TEST_PASSWORD') == '1' else 12
         if not minimum <= len(password) <= 200:
             raise ServiceError('Пароль должен содержать от 12 до 200 символов')
-        if role == 'manager' and not department:
-            raise ServiceError('Укажите --department')
-        if role == 'employee' and not employee:
-            raise ServiceError('Укажите --employee "Фамилия Имя"')
+        if role == 'manager' and not (department or department_id):
+            raise ServiceError('Укажите --department или --department-id')
+        if role == 'employee' and not (employee or employee_uuid):
+            raise ServiceError('Укажите --employee-uuid или --employee "Фамилия Имя"')
+        if role == 'executive' and not (office or office_id):
+            raise ServiceError('Укажите --office или --office-id')
         key = self.repository.key()
         salt = secrets.token_hex(16)
-        record = dict(role=role, department=department,
+        record = dict(role=role, department=department, department_id=department_id,
+                      office=office, office_id=office_id, employee_uuid=employee_uuid,
                       employee_id=token(employee, base64.urlsafe_b64decode(key)) if employee else '',
                       salt=salt, hash=password_hash(password, salt))
         self.repository.add_user(username, record)

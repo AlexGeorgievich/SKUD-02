@@ -1,7 +1,9 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from .validation import normalize_contact
 
 
 DEPARTMENT_STATUSES = (
@@ -18,7 +20,15 @@ class HrSafeModel(BaseModel):
 
 class HrEmployeeUpdate(HrSafeModel):
     plan_name: str | None = Field(default=None, max_length=255)
+    family_name: str | None = Field(default=None, max_length=120)
+    given_name: str | None = Field(default=None, max_length=120)
+    patronymic: str | None = Field(default=None, max_length=120)
     department: str | None = Field(default=None, max_length=255)
+    office_id: str | None = Field(default=None, max_length=36)
+    department_id: str | None = Field(default=None, max_length=36)
+    legal_entity_id: str | None = Field(default=None, max_length=36)
+    gender_id: str | None = Field(default=None, max_length=36)
+    work_format_id: str | None = Field(default=None, max_length=36)
     office: str | None = Field(default=None, max_length=255)
     department_status: Literal[
         "Сотрудник", "Руководитель отдела", "Заместитель руководителя", "Временно исполняющий обязанности"
@@ -41,6 +51,7 @@ class HrEmployeeUpdate(HrSafeModel):
     deputy_until: date | None = None
     personnel_number: str | None = Field(default=None, max_length=64)
     position: str | None = Field(default=None, max_length=255)
+    position_en: str | None = Field(default=None, max_length=255)
     schedule_type: str | None = Field(default=None, max_length=64)
     schedule_hours: int | None = Field(default=None, ge=0, le=168)
     employment_status: str | None = Field(default=None, max_length=64)
@@ -50,15 +61,44 @@ class HrEmployeeUpdate(HrSafeModel):
     responsibility: str | None = None
     work_email: str | None = Field(default=None, max_length=255)
     work_phone: str | None = Field(default=None, max_length=64)
+    telegram: str | None = Field(default=None, max_length=255)
+    personal_phone: str | None = Field(default=None, max_length=64)
+    business_card: str | None = Field(default=None, max_length=255)
+    academic_degree: str | None = Field(default=None, max_length=255)
+    recommendation: str | None = None
+    recruiter: str | None = Field(default=None, max_length=255)
+    photo_source_url: str | None = Field(default=None, max_length=1024)
+    mail_image_url: str | None = Field(default=None, max_length=1024)
+    insurance: str | None = Field(default=None, max_length=255)
     access_card_number: str | None = Field(default=None, max_length=64)
     access_card_status: str | None = Field(default=None, max_length=64)
     access_level: str | None = Field(default=None, max_length=128)
     work_zones: list[str] | None = None
 
+    @field_validator("work_email")
+    @classmethod
+    def valid_email(cls, value: str | None) -> str | None:
+        return normalize_contact("email", value)
+
+    @field_validator("work_phone", "personal_phone")
+    @classmethod
+    def valid_phone(cls, value: str | None) -> str | None:
+        return normalize_contact("phone", value)
+
+    @field_validator("telegram")
+    @classmethod
+    def valid_telegram(cls, value: str | None) -> str | None:
+        return normalize_contact("telegram", value)
+
 
 class HrEmployeeCreate(HrEmployeeUpdate):
-    plan_name: str = Field(min_length=1, max_length=255)
-    department: str = Field(min_length=1, max_length=255)
+    @model_validator(mode="after")
+    def required_identity(self):
+        structured = bool(self.family_name and self.given_name and self.department_id)
+        legacy = bool(self.plan_name and self.department)
+        if not structured and not legacy:
+            raise ValueError("Укажите фамилию, имя и отдел из справочника")
+        return self
 
 
 class HrDepartmentCreate(HrSafeModel):
