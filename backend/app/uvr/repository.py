@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from .models import UvrPeriod,UvrSourceRow,UvrSourceVersion
+from .models import UvrPeriod,UvrSourceRow,UvrSourceVersion,UvrCalculationVersion
 from ..hr.models import utcnow
 
 class UvrRepository:
@@ -19,6 +19,22 @@ class UvrRepository:
   with self.sessions() as s:
    versions=list(s.scalars(select(UvrSourceVersion).where(UvrSourceVersion.period==period,UvrSourceVersion.kind==kind).order_by(UvrSourceVersion.version)))
    return [(v,list(s.scalars(select(UvrSourceRow).where(UvrSourceRow.source_version_id==v.id).order_by(UvrSourceRow.row_number)))) for v in versions]
+ def latest_sources(self,period):
+  with self.sessions() as s:
+   result={}
+   for kind in ('plan','fact','control'):
+    version=s.scalar(select(UvrSourceVersion).where(UvrSourceVersion.period==period,UvrSourceVersion.kind==kind).order_by(UvrSourceVersion.version.desc()).limit(1))
+    if version:
+     rows=list(s.scalars(select(UvrSourceRow).where(UvrSourceRow.source_version_id==version.id).order_by(UvrSourceRow.row_number)))
+     result[kind]=(version,rows)
+   return result
+ def save_calculation(self,period,source_versions,result,author):
+  with self.sessions.begin() as s:
+   number=(s.scalar(select(func.max(UvrCalculationVersion.version)).where(UvrCalculationVersion.period==period)) or 0)+1
+   item=UvrCalculationVersion(period=period,version=number,source_versions=source_versions,result=result,author=author)
+   s.add(item);s.flush();return item
+ def latest_calculation(self,period):
+  with self.sessions() as s:return s.scalar(select(UvrCalculationVersion).where(UvrCalculationVersion.period==period).order_by(UvrCalculationVersion.version.desc()).limit(1))
  def publish(self,period,kind,content_hash,blob,rows,mapping,author,reason):
   with self.sessions.begin() as s:
    existing=s.scalar(select(UvrSourceVersion).where(UvrSourceVersion.period==period,UvrSourceVersion.kind==kind,UvrSourceVersion.content_hash==content_hash))

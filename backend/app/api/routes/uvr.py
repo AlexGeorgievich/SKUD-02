@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from fastapi import APIRouter,Depends,File,Form,UploadFile
 from ...container import Container
 from ...domain.errors import ServiceError
@@ -35,9 +36,11 @@ def rows_for(blob,kind,period):
 async def source_preview(period:str,kind:str,file:UploadFile=File(...),user:dict=Depends(current_user),c:Container=Depends(get_container)):
  if user['role'] not in ('admin','timekeeper'):raise ServiceError('Нет права на загрузку источника',403)
  blob=await file.read(c.settings.upload_limit+1);rows=rows_for(blob,kind,period)
- preview=preview_source(rows,kind,c.hr.repository.list_employees())
+ roster=c.hr.repository.list_employees();preview=preview_source(rows,kind,roster)
  errors=[{'row':row['row_number'],**error} for row in rows for error in row.get('errors',[])]
- return {'rows':[item.__dict__ for item in preview],'requires_review':sum(item.status!='matched' for item in preview)+len(errors),'errors':errors}
+ names={employee.id:{'id':employee.id,'name':employee.plan_name,'department':employee.department} for employee in roster}
+ all_candidates=list(names.values())
+ return {'rows':[{**item.__dict__,'candidates':all_candidates if item.status=='unknown' else [names[identifier] for identifier in item.candidate_ids if identifier in names]} for item in preview],'requires_review':sum(item.status!='matched' for item in preview)+len(errors),'errors':errors}
 
 @router.post('/periods/{period}/sources/{kind}/apply')
 async def source_apply(period:str,kind:str,file:UploadFile=File(...),decisions:str=Form('{}'),reason:str|None=Form(None),user:dict=Depends(current_user),c:Container=Depends(get_container)):
@@ -56,6 +59,20 @@ async def source_apply(period:str,kind:str,file:UploadFile=File(...),decisions:s
 def close(period:str,user:dict=Depends(current_user),c:Container=Depends(get_container)):
  if user['role'] not in ('admin','timekeeper'):raise ServiceError('Нет права на закрытие месяца',403)
  return service(c).close(period,user['username'])
+
+@router.post('/periods/{period}/calculate')
+def calculate(period:str,asof:date|None=None,user:dict=Depends(current_user),c:Container=Depends(get_container)):
+ if user['role'] not in ('admin','timekeeper'):raise ServiceError('Нет права на расчёт УВР',403)
+ try:return service(c).calculate(period,user['username'],asof=asof)
+ except ValueError as error:raise ServiceError(str(error),409)
+
+@router.get('/periods/{period}/calculation')
+def calculation(period:str,user:dict=Depends(current_user),c:Container=Depends(get_container)):
+ item=service(c).repository.latest_calculation(period)
+ if item is None:raise ServiceError('Расчёт за месяц ещё не сформирован',404)
+ allowed={employee.id for employee in c.hr.repository.list_employees() if can_view(user,employee,c.auth.repository.key())}
+ result={**item.result,'employees':[row for row in item.result['employees'] if row['employee_id'] in allowed],'days':[row for row in item.result['days'] if row['employee_id'] in allowed],'unmatched':[row for row in item.result['unmatched'] if row['employee_id'] in allowed]}
+ return {'id':item.id,'period':period,'version':item.version,'source_versions':item.source_versions,'result':result,'author':item.author}
 
 @router.get('/periods/{period}/control-summary')
 def source_control_summary(period:str,user:dict=Depends(current_user),c:Container=Depends(get_container)):

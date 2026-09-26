@@ -43,6 +43,8 @@ def serialize_employee(employee, user: dict, detail: bool = False, mode: str | N
             card.pop(field, None)
     if role == 'auditor':
         card = {key: card.get(key) for key in ('id', 'department', 'office', 'position', 'employment_status')}
+    elif employee.photo_path and detail and role not in ('timekeeper', 'auditor'):
+        card['photo_url'] = f"/api/hr/employees/{employee.id}/photo"
     card['mode'] = mode or ('edit' if role in ('admin', 'hr') else 'read-only')
     return card
 

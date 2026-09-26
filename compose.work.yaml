@@ -1,0 +1,32 @@
+services:
+  postgres:
+    env_file: !override
+      - ${TIMETRACK_WORK_ENV_FILE:-.env.work.example}
+    environment:
+      POSTGRES_DB: ${WORK_POSTGRES_DB:-timetrack_work}
+      POSTGRES_USER: ${WORK_POSTGRES_USER:-timetrack_work}
+      POSTGRES_PASSWORD: ${WORK_POSTGRES_PASSWORD:-replace-this-before-use}
+    volumes: !override
+      - timetrack_work_postgres_data:/var/lib/postgresql/data
+      - timetrack_work_backups:/var/lib/postgresql/backups
+
+  migrate:
+    env_file: !override
+      - ${TIMETRACK_WORK_ENV_FILE:-.env.work.example}
+
+  app:
+    env_file: !override
+      - ${TIMETRACK_WORK_ENV_FILE:-.env.work.example}
+    environment:
+      TIMETRACK_DATA: /app/data
+      TIMETRACK_ALLOWED_ORIGINS: http://localhost:8002,http://127.0.0.1:8002
+    ports: !override
+      - "8002:8000"
+    volumes: !override
+      - timetrack_work_files:/app/data
+      - timetrack_work_backups:/app/backups
+
+volumes:
+  timetrack_work_postgres_data: {}
+  timetrack_work_backups: {}
+  timetrack_work_files: {}

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {DataTable,FileDrop} from '../shared/ui';
 import {Login} from '../features/auth/Login';
 import {Upload} from '../features/import/Upload';
+import {KusSourceReview} from '../features/import/KusSourceReview';
 import {filterEmployees,summarize} from '../features/analytics/model';
 import type {Dataset,Employee} from '../shared/types';
 import {Workspace} from '../app/Workspace';
@@ -61,6 +62,28 @@ describe('Выбор строки таблицы',()=>{
 it('показывает отказ входа без открытия рабочего пространства',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({detail:'Неверный логин или пароль'}),{status:401})));
  const login=vi.fn();render(<Login onLogin={login}/>);const user=userEvent.setup();await user.type(screen.getByLabelText('Пароль'),'bad-password');await user.click(screen.getByText('Войти в систему →'));await screen.findByRole('alert');expect(screen.getByRole('alert').textContent).toBe('Неверный логин или пароль');expect(login).not.toHaveBeenCalled();
+});
+describe('Сопоставление импорта с КУС',()=>{
+ it('не разрешает apply до ручного выбора неизвестного ФИ и отправляет UUID',async()=>{
+  const fetchMock=vi.fn(async(_url:RequestInfo|URL,options?:RequestInit)=>{
+   if(options?.method==='POST'&&(options.body as FormData).has('decisions'))return new Response(JSON.stringify({status:'published',version:1}),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({rows:[{row_number:6,source_name:'Новый Иван',source_department:'Buying',candidate_ids:[],candidates:[{id:'kus-1',name:'Иван Новый',department:'Buying'}],status:'unknown'}],requires_review:1,errors:[]}),{status:200,headers:{'Content-Type':'application/json'}});
+  });vi.stubGlobal('fetch',fetchMock);
+  render(<KusSourceReview period="2026-08" kind="plan" file={new File(['plan'],'plan.xlsx')} notify={vi.fn()}/>);
+  const user=userEvent.setup();await user.click(screen.getByRole('button',{name:'Preview'}));
+  const apply=screen.getByRole('button',{name:'Применить в историю'}) as HTMLButtonElement;expect(apply.disabled).toBe(true);
+  await user.selectOptions(screen.getByLabelText('Сопоставление строки 6'),'kus-1');expect(apply.disabled).toBe(false);
+  await user.click(apply);await waitFor(()=>expect(fetchMock).toHaveBeenCalledTimes(2));
+  const body=fetchMock.mock.calls[1][1]?.body as FormData;expect(body.get('decisions')).toBe('{"6":"kus-1"}');
+ });
+ it('запускает расчёт истории за дату среза и показывает сохранённую сводку',async()=>{
+  const fetchMock=vi.fn(async()=>new Response(JSON.stringify({version:1,source_versions:{plan:2,fact:1},employees:[{employee_id:'kus-1',employee_name:'Иванов Иван',department:'Buying',minutes:540,registered_days:1,issues:2}],days:[],unmatched:[]}),{status:200,headers:{'Content-Type':'application/json'}}));vi.stubGlobal('fetch',fetchMock);
+  render(<Upload period="2026-08" onComplete={vi.fn(async()=>{})} notify={vi.fn()} canImport setImportBusy={vi.fn()}/>);
+  await userEvent.setup().click(screen.getByRole('button',{name:'Рассчитать месячный план–факт'}));
+  await screen.findByText(/Расчёт версии 1/);
+  expect(screen.getByText(/Иванов Иван/)).toBeTruthy();
+  const [url,options]=fetchMock.mock.calls[0] as unknown as [string,RequestInit];expect(url).toContain('/api/uvr/periods/2026-08/calculate');expect(options.method).toBe('POST');
+ });
 });
 
 describe('Кадровое рабочее место',()=>{

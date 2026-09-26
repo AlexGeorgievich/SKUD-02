@@ -20,7 +20,13 @@ export function HrEmployeeCard({employee,catalogs,mode,draft,onChange}:{employee
   <Field label="Дата приёма"><input type="date" value={draft.hire_date||''} disabled={disabled} onChange={event=>onChange('hire_date',event.target.value)}/></Field>
   <Field label="ТГ"><input value={draft.telegram||''} disabled={disabled} placeholder="@username" onChange={event=>onChange('telegram',event.target.value)}/></Field>
   <Field label="Личный телефон"><input type="tel" value={draft.personal_phone||''} disabled={disabled} onChange={event=>onChange('personal_phone',event.target.value)}/></Field>
+  <Field label="Рабочая почта"><input type="email" value={draft.work_email||''} disabled={disabled} onChange={event=>onChange('work_email',event.target.value)}/></Field>
+  <Field label="Визитка"><input value={draft.business_card||''} disabled={disabled} onChange={event=>onChange('business_card',event.target.value)}/></Field>
+  <Field label="Учёная степень"><input value={draft.academic_degree||''} disabled={disabled} onChange={event=>onChange('academic_degree',event.target.value)}/></Field>
+  <Field label="Рекомендация"><input value={draft.recommendation||''} disabled={disabled} onChange={event=>onChange('recommendation',event.target.value)}/></Field>
+  <Field label="Рекрутер HR"><input value={draft.recruiter||''} disabled={disabled} onChange={event=>onChange('recruiter',event.target.value)}/></Field>
   <Field label="Ссылка на фото"><input type="url" value={draft.photo_source_url||''} disabled={disabled} onChange={event=>onChange('photo_source_url',event.target.value)}/></Field>
+  <Field label="Картинка в почте"><input type="url" value={draft.mail_image_url||''} disabled={disabled} onChange={event=>onChange('mail_image_url',event.target.value)}/></Field>
   <Field label="Страховка"><input value={draft.insurance||''} disabled={disabled} onChange={event=>onChange('insurance',event.target.value)}/></Field>
   <Field wide label="Круг задач и направления"><textarea value={draft.responsibility||''} disabled={disabled} onChange={event=>onChange('responsibility',event.target.value)}/></Field>
   <Field label="Образование"><input value={draft.education_institution||''} disabled={disabled} onChange={event=>onChange('education_institution',event.target.value)}/></Field>

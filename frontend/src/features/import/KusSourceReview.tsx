@@ -1,0 +1,18 @@
+import {useState} from 'react';
+import {api,errorText} from '../../shared/api/client';
+
+type Candidate={id:string;name:string;department?:string|null};
+type Match={row_number:number;source_name:string;source_department?:string|null;candidate_ids:string[];candidates:Candidate[];status:'matched'|'ambiguous'|'unknown'};
+type Review={rows:Match[];requires_review:number;errors:{row:number;field?:string;error:string}[]};
+
+export function KusSourceReview({period,kind,file,notify,onApplied}:{period:string;kind:'plan'|'fact'|'control';file:File|null;notify:(message:string)=>void;onApplied?:()=>void}){
+ const [review,setReview]=useState<Review|null>(null),[decisions,setDecisions]=useState<Record<number,string>>({}),[busy,setBusy]=useState(false),[applied,setApplied]=useState(false);
+ const title=kind==='plan'?'План':kind==='fact'?'СКУД': 'Отчёт СК';
+ const preview=async()=>{if(!file)return;const data=new FormData();data.append('file',file);setBusy(true);setApplied(false);try{const result=await api<Review>(`/api/uvr/periods/${period}/sources/${kind}/preview`,{method:'POST',body:data});setReview(result);setDecisions({});notify(`${title}: строк ${result.rows.length}, требуют сопоставления ${result.requires_review}`)}catch(error){notify(errorText(error))}finally{setBusy(false)}};
+ const apply=async()=>{if(!file||!review)return;const data=new FormData();data.append('file',file);data.append('decisions',JSON.stringify(decisions));setBusy(true);try{await api(`/api/uvr/periods/${period}/sources/${kind}/apply`,{method:'POST',body:data});setApplied(true);notify(`${title}: версия месяца сохранена`);onApplied?.()}catch(error){notify(errorText(error))}finally{setBusy(false)}};
+ const unresolved=review?.rows.filter(row=>row.status!=='matched'&&!decisions[row.row_number])||[];
+ const invalid=Boolean(review?.errors.length);
+ return <section className="card uvr-source-review"><header><div><h3>{title}: сопоставление с КУС</h3><p>{file?file.name:'Сначала выберите файл выше'}</p></div><div className="actions"><button disabled={!file||busy} onClick={()=>void preview()}>{busy?'Проверяем…':'Preview'}</button><button className="primary" disabled={!review||busy||invalid||unresolved.length>0||applied} onClick={()=>void apply()}>{busy?'Сохраняем…':applied?'Версия сохранена':'Применить в историю'}</button></div></header>
+  {review&&<><p>Строк: {review.rows.length}. Ручная проверка: {review.requires_review}. Сохранение создаёт снимок источника с UUID КУС.</p>{invalid&&<ul className="uvr-match-errors">{review.errors.slice(0,20).map((error,index)=><li key={`${error.row}-${index}`}>Строка {error.row}: {error.field?`${error.field} — `:''}{error.error}</li>)}</ul>}<div className="table-scroll"><table><thead><tr><th>Строка</th><th>ФИО источника</th><th>Отдел</th><th>Сопоставление</th><th>Статус</th></tr></thead><tbody>{review.rows.slice(0,300).map(row=><tr key={row.row_number}><td>{row.row_number}</td><td>{row.source_name||'—'}</td><td>{row.source_department||'—'}</td><td>{row.status==='matched'?row.candidates[0]?.name:<select aria-label={`Сопоставление строки ${row.row_number}`} value={decisions[row.row_number]||''} onChange={event=>setDecisions(current=>({...current,[row.row_number]:event.target.value}))}><option value="">Выберите карточку КУС</option>{row.candidates.map(candidate=><option key={candidate.id} value={candidate.id}>{candidate.name}{candidate.department?` · ${candidate.department}`:''}</option>)}</select>}</td><td>{row.status==='matched'?'Совпадение':row.status==='ambiguous'?'Неоднозначно':'Не найдено'}</td></tr>)}</tbody></table>{review.rows.length>300&&<p>Показаны первые 300 строк; все строки участвуют в проверке.</p>}</div></>}
+ </section>
+}

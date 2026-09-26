@@ -32,4 +32,22 @@ class UvrHistoryTests(unittest.TestCase):
         self.assertEqual([item['version'] for item in history],[1,2])
         self.assertEqual(history[0]['rows'][0]['source_name'],'Иванов Иван')
 
+    def test_calculation_joins_plan_and_fact_by_kus_uuid_and_pins_source_versions(self):
+        plan=[{'row_number':4,'name':'Иванов Иван (план)','department':'Buying','values':['О','Д']}]
+        fact=[{'row_number':12,'name':'Иванов Иван (СКУД)','department':'','values':['09:00 18:00--9:00','—']}]
+        self.service.publish('2026-08','plan',b'plan-v1',plan,{4:'kus-1'},'admin')
+        self.service.publish('2026-08','fact',b'fact-v1',fact,{12:'kus-1'},'admin')
+        control=[{'row_number':2,'name':'Иванов Иван (СК)','department':'Buying','values':{'active_hours':150,'useful_hours':110,'hh_minutes':12,'remarks':'не включать в результат'}}]
+        self.service.publish('2026-08','control',b'control-v1',control,{2:'kus-1'},'admin')
+
+        result=self.service.calculate('2026-08','admin',asof='2026-08-01')
+
+        self.assertEqual(result['source_versions'],{'plan':1,'fact':1,'control':1})
+        self.assertEqual(result['employees'][0]['employee_id'],'kus-1')
+        self.assertEqual(result['employees'][0]['registered_days'],1)
+        self.assertEqual(result['employees'][0]['minutes'],540)
+        self.assertEqual(result['employees'][0]['control'],{'active_hours':150,'useful_hours':110,'hh_minutes':12})
+        self.assertEqual(result['days'][1]['registered'],False)
+        self.assertNotIn('прогул',result['days'][1]['result'].lower())
+
 if __name__=='__main__':unittest.main()
