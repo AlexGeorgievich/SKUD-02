@@ -119,6 +119,22 @@ describe('Кадровое рабочее место',()=>{
   expect(within(dialog).getByLabelText('Год рождения').getAttribute('type')).toBe('date');
   expect(within(dialog).getByLabelText('Год окончания').getAttribute('type')).toBe('date');
  });
+ it('редактирует ФИО отдельными полями и открывает кадровые справочники',async()=>{
+  const fetchMock=vi.fn(async(url:RequestInfo|URL)=>{
+   const path=String(url);
+   if(path.includes('/catalogs'))return new Response(JSON.stringify({offices:[{id:'o1',name:'Главный офис'}],departments:[{id:'d1',name:'Accounting Offline',office_id:'o1'}],legal_entities:[{id:'l1',name:'ООО Тест'}],values:[{id:'g1',kind:'gender',label:'Женский'},{id:'w1',kind:'work_format',label:'Гибрид'}]}),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({items:[{...employee,family_name:'Беляев',given_name:'Харлампий',department_id:'d1',office_id:'o1'}],count:1}),{status:200,headers:{'Content-Type':'application/json'}});
+  });
+  vi.stubGlobal('fetch',fetchMock);render(<HrPage role="hr" notify={vi.fn()}/>);await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});
+  expect(within(dialog).getByLabelText('Фамилия')).toBeTruthy();
+  expect(within(dialog).getByLabelText('Имя')).toBeTruthy();
+  expect(within(dialog).getByLabelText('Отчество')).toBeTruthy();
+  await userEvent.click(within(dialog).getByRole('button',{name:'Закрыть'}));
+  await userEvent.click(screen.getByRole('tab',{name:'Справочники'}));
+  expect(await screen.findByRole('heading',{name:'Справочники кадрового учёта'})).toBeTruthy();
+  expect(screen.getByText('Главный офис')).toBeTruthy();
+ });
  it('открывает карточку TimeTrack только для просмотра',async()=>{
   renderHr('timekeeper');await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
   expect(screen.getByText(/Только просмотр/)).toBeTruthy();
