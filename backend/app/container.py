@@ -8,6 +8,8 @@ from .services.reports import ReportService
 from .services.ports import Repository
 from .hr.repository import HrRepository
 from .hr.service import HrService
+from .uvr.repository import UvrRepository
+from .uvr.service import UvrService
 
 @dataclass
 class Container:
@@ -17,10 +19,12 @@ class Container:
     imports: ImportService
     reports: ReportService
     hr: HrService | None = None
+    uvr: UvrService | None = None
 
 def build_container(settings: Settings, repository: Repository | None = None) -> Container:
     repo = repository if repository is not None else FileRepository(settings.data_dir)
     hr_service = None
     if settings.database_url:
         hr_service = HrService(HrRepository(settings.database_url))
-    return Container(settings, repo, AuthService(repo, settings.session_seconds), ImportService(repo, hr_service), ReportService(repo), hr_service)
+    uvr_service = UvrService(UvrRepository(hr_service.repository.engine)) if hr_service else None
+    return Container(settings, repo, AuthService(repo, settings.session_seconds), ImportService(repo, hr_service), ReportService(repo), hr_service, uvr_service)
