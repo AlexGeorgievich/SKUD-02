@@ -11,7 +11,7 @@ from .models import HrAuditLog, HrBootstrapState, HrCatalogValue, HrDepartment, 
 
 SAFE_FIELDS = {
     "plan_name", "family_name", "given_name", "patronymic", "department", "department_id", "office", "office_id",
-    "legal_entity_id", "gender_id", "work_format_id", "department_status", "gender", "birth_year", "birth_month", "birth_date", "hire_date",
+    "legal_entity_id", "gender_id", "work_format_id", "position_id", "department_status", "gender", "birth_year", "birth_month", "birth_date", "birth_place", "hire_date",
     "work_schedule", "department_head_id", "deputy_id", "deputy_from", "deputy_until",
     "education_institution", "education_specialty", "education_graduation_year", "education_graduation_month", "education_graduation_date", "work_experience",
     "personnel_number", "position", "position_en", "schedule_type", "schedule_hours",
@@ -78,11 +78,13 @@ class HrRepository:
 
     def catalog_items(self) -> dict[str, list]:
         with self.sessions() as session:
+            values = list(session.scalars(select(HrCatalogValue).order_by(HrCatalogValue.kind, HrCatalogValue.label)))
             return {
                 "offices": list(session.scalars(select(HrOffice).order_by(HrOffice.name))),
                 "departments": list(session.scalars(select(HrDepartment).order_by(HrDepartment.name))),
                 "legal_entities": list(session.scalars(select(HrLegalEntity).order_by(HrLegalEntity.name))),
-                "values": list(session.scalars(select(HrCatalogValue).order_by(HrCatalogValue.kind, HrCatalogValue.label))),
+                "values": values,
+                "positions": [item for item in values if item.kind == "position"],
             }
 
     def create_import_batch(self, author: str, diagnostics: dict, error_count: int) -> HrImportBatch:
@@ -175,6 +177,9 @@ class HrRepository:
                 if employee.work_format_id:
                     value = session.get(HrCatalogValue, employee.work_format_id)
                     item["work_format"] = value.label if value else None
+                if employee.position_id:
+                    value = session.get(HrCatalogValue, employee.position_id)
+                    item["position"] = value.label if value and value.kind == "position" else employee.position
                 rows.append(item)
             return rows
 
@@ -184,7 +189,7 @@ class HrRepository:
             references = {
                 "office_id": HrOffice, "department_id": HrDepartment,
                 "legal_entity_id": HrLegalEntity, "gender_id": HrCatalogValue,
-                "work_format_id": HrCatalogValue,
+                "work_format_id": HrCatalogValue, "position_id": HrCatalogValue,
             }
             objects = {}
             for field, model in references.items():
@@ -198,6 +203,10 @@ class HrRepository:
                 raise ValueError("Неверное значение пола")
             if "work_format_id" in objects and objects["work_format_id"].kind != "work_format":
                 raise ValueError("Неверный формат работы")
+            if "position_id" in objects and objects["position_id"].kind != "position":
+                raise ValueError("Неверная должность")
+            if "position_id" in objects:
+                checked["position"] = objects["position_id"].label
             department = objects.get("department_id")
             office = objects.get("office_id")
             if department and office and department.office_id and department.office_id != office.id:

@@ -61,6 +61,33 @@ class KusMigrationTests(unittest.TestCase):
             self.assertEqual(connection.scalar(text("SELECT COUNT(*) FROM hr_departments")), 2)
             self.assertEqual(connection.scalar(text("SELECT COUNT(*) FROM hr_catalog_values WHERE kind='gender'")), 2)
 
+    def test_0010_adds_birth_place_and_position_reference_without_changing_employee_identity(self):
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO hr_employees (id,plan_employee_id,plan_name,plan_department,position,employment_status,in_current_plan,created_at,updated_at) VALUES ('e-1','plan-1','Иванов Иван','Buying','Аналитик','active',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))
+            migration = importlib.import_module("backend.alembic.versions.0010_kus_card_catalog_admin")
+            with Operations.context(MigrationContext.configure(connection)):
+                migration.upgrade()
+            row = connection.execute(text("SELECT id,plan_employee_id,birth_place,position_id FROM hr_employees WHERE id='e-1'")).one()
+            self.assertEqual(row[0:3], ("e-1", "plan-1", None))
+            self.assertIsNotNone(row[3])
+            self.assertEqual(connection.scalar(text("SELECT label FROM hr_catalog_values WHERE id=:id"), {"id": row[3]}), "Аналитик")
+
+    def test_0010_backfills_distinct_trimmed_positions_and_preserves_unknown_catalog_values(self):
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO hr_catalog_values (id,kind,label,created_at) VALUES ('g-x','gender','Не определён',CURRENT_TIMESTAMP),('w-x','work_format','Гибрид',CURRENT_TIMESTAMP)"))
+            connection.execute(text("INSERT INTO hr_employees (id,plan_employee_id,plan_name,plan_department,position,gender_id,work_format_id,employment_status,in_current_plan,created_at,updated_at) VALUES ('e-1','p-1','Первый Один','HR',' Аналитик ','g-x','w-x','active',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),('e-2','p-2','Второй Два','HR','аналитик',NULL,NULL,'active',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))
+            migration = importlib.import_module("backend.alembic.versions.0010_kus_card_catalog_admin")
+            with Operations.context(MigrationContext.configure(connection)):
+                migration.upgrade()
+            rows = connection.execute(text("SELECT position_id,gender_id,work_format_id FROM hr_employees ORDER BY id")).all()
+            self.assertEqual(rows[0][0], rows[1][0])
+            self.assertEqual(rows[0][1:], ("g-x", "w-x"))
+            self.assertEqual(connection.scalar(text("SELECT COUNT(*) FROM hr_catalog_values WHERE kind='position'")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
