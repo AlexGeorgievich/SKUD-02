@@ -9,6 +9,7 @@ import {filterEmployees,summarize} from '../features/analytics/model';
 import type {Dataset,Employee} from '../shared/types';
 import {Workspace} from '../app/Workspace';
 import {HrPage} from '../features/hr/HrPage';
+import {AdminPage} from '../features/admin/AdminPage';
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()});
 describe('Файлы',()=>{
@@ -168,7 +169,7 @@ describe('Кадровое рабочее место',()=>{
   expect((within(dialog).getByLabelText('Отдел') as HTMLSelectElement).value).toBe('');
   expect(within(dialog).getByRole('option',{name:'Buying'})).toBeTruthy();
  });
- it('редактирует ФИО отдельными полями и открывает кадровые справочники',async()=>{
+ it('редактирует ФИО отдельными полями без раздела управления справочниками',async()=>{
   const fetchMock=vi.fn(async(url:RequestInfo|URL)=>{
    const path=String(url);
    if(path.includes('/catalogs'))return new Response(JSON.stringify({offices:[{id:'o1',name:'Главный офис'}],departments:[{id:'d1',name:'Accounting Offline',office_id:'o1'}],legal_entities:[{id:'l1',name:'ООО Тест'}],values:[{id:'g1',kind:'gender',label:'Женский'},{id:'w1',kind:'work_format',label:'Гибрид'}]}),{status:200,headers:{'Content-Type':'application/json'}});
@@ -180,9 +181,7 @@ describe('Кадровое рабочее место',()=>{
   expect(within(dialog).getByLabelText('Имя')).toBeTruthy();
   expect(within(dialog).getByLabelText('Отчество')).toBeTruthy();
   await userEvent.click(within(dialog).getByRole('button',{name:'Закрыть'}));
-  await userEvent.click(screen.getByRole('tab',{name:'Справочники'}));
-  expect(await screen.findByRole('heading',{name:'Справочники кадрового учёта'})).toBeTruthy();
-  expect(screen.getByText('Главный офис')).toBeTruthy();
+  expect(screen.queryByRole('tab',{name:'Справочники'})).toBeNull();
  });
  it('открывает карточку TimeTrack только для просмотра',async()=>{
   renderHr('timekeeper');await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
@@ -232,6 +231,39 @@ describe('Кадровое рабочее место',()=>{
   expect(screen.getByText('Карточка в архиве')).toBeTruthy();
   await userEvent.click(screen.getByRole('button',{name:'Восстановить'}));
   await waitFor(()=>expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/restore'),expect.objectContaining({method:'POST'})));
+ });
+});
+
+describe('Административные справочники',()=>{
+ it('показывает четыре справочника, CRUD и сохраняет строку при конфликте удаления',async()=>{
+  let positionName='Аналитик',deleteConflict=true;
+  const catalogBody=()=>({
+   legal_entities:[{id:'l1',name:'ООО Тест',employee_count:0}],
+   offices:[{id:'o1',name:'Москва',employee_count:0,department_count:1}],
+   departments:[{id:'d1',name:'Buying',office_id:'o1',head_id:'e1',employee_count:1,head_count:1}],
+   positions:[{id:'p1',name:positionName,employee_count:1}],
+  });
+  const fetchMock=vi.fn(async(url:RequestInfo|URL,options?:RequestInit)=>{
+   const path=String(url),method=options?.method||'GET';
+   if(path.endsWith('/api/admin/users'))return new Response(JSON.stringify({items:[]}),{status:200,headers:{'Content-Type':'application/json'}});
+   if(path.endsWith('/api/admin/catalogs')&&method==='GET')return new Response(JSON.stringify(catalogBody()),{status:200,headers:{'Content-Type':'application/json'}});
+   if(path.endsWith('/api/hr/employees'))return new Response(JSON.stringify({items:[{id:'e1',plan_name:'Иванов Иван',department_id:'d1'}]}),{status:200,headers:{'Content-Type':'application/json'}});
+   if(path.endsWith('/api/admin/catalogs/positions/p1')&&method==='PATCH'){positionName=JSON.parse(String(options?.body)).name;return new Response(JSON.stringify({...catalogBody().positions[0],name:positionName}),{status:200,headers:{'Content-Type':'application/json'}})}
+   if(path.endsWith('/api/admin/catalogs/positions/p1')&&method==='DELETE'&&deleteConflict)return new Response(JSON.stringify({detail:'Удаление запрещено: существуют зависимости'}),{status:409,headers:{'Content-Type':'application/json'}});
+   if(method==='POST')return new Response(JSON.stringify({id:'new',name:JSON.parse(String(options?.body)).name,employee_count:0}),{status:201,headers:{'Content-Type':'application/json'}});
+   return new Response(null,{status:204});
+  });
+  vi.stubGlobal('fetch',fetchMock);const notify=vi.fn(),user=userEvent.setup();render(<AdminPage notify={notify}/>);
+  await user.click(screen.getByRole('tab',{name:'Справочники'}));
+  expect(await screen.findByRole('heading',{name:'Справочники кадрового учёта'})).toBeTruthy();
+  for(const title of ['Юридические лица','Офисы','Отделы','Должности'])expect(screen.getByRole('heading',{name:title})).toBeTruthy();
+  expect(screen.getByText(/Отделов: 1/)).toBeTruthy();expect(screen.getAllByText(/Сотрудников: 1/).length).toBeGreaterThan(0);
+  await user.click(screen.getByRole('button',{name:'Добавить должность'}));await user.type(screen.getByLabelText('Название'),'Менеджер');await user.click(screen.getByRole('button',{name:'Сохранить'}));
+  await user.click(screen.getByRole('button',{name:'Редактировать Аналитик'}));await user.clear(screen.getByLabelText('Название'));await user.type(screen.getByLabelText('Название'),'Старший аналитик');await user.click(screen.getByRole('button',{name:'Сохранить'}));
+  expect(await screen.findByText('Старший аналитик')).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Удалить Старший аналитик'}));expect(screen.getByText(/Подтвердите удаление/)).toBeTruthy();await user.click(screen.getByRole('button',{name:'Подтвердить удаление'}));
+  expect((await screen.findByRole('alert')).textContent).toBe('Удаление запрещено: существуют зависимости');expect(screen.getByText('Старший аналитик')).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Редактировать Buying'}));expect(screen.getByLabelText('Офис')).toBeTruthy();expect(screen.getByLabelText('Руководитель отдела')).toBeTruthy();
  });
 });
 
