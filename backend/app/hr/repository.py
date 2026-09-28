@@ -2,7 +2,7 @@ from datetime import date
 from uuid import uuid4
 from json import dumps, loads
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -86,6 +86,123 @@ class HrRepository:
                 "values": values,
                 "positions": [item for item in values if item.kind == "position"],
             }
+
+    @staticmethod
+    def _catalog_model(kind: str):
+        mapping = {
+            "legal_entities": HrLegalEntity,
+            "offices": HrOffice,
+            "departments": HrDepartment,
+            "positions": HrCatalogValue,
+        }
+        if kind not in mapping:
+            raise ValueError("Неизвестный вид справочника")
+        return mapping[kind]
+
+    def catalog_usage(self, kind: str, item_id: str) -> dict:
+        model = self._catalog_model(kind)
+        with self.sessions() as session:
+            item = session.get(model, item_id)
+            if item is None or (kind == "positions" and item.kind != "position"):
+                raise KeyError(item_id)
+            employee_field = {
+                "legal_entities": HrEmployee.legal_entity_id,
+                "offices": HrEmployee.office_id,
+                "departments": HrEmployee.department_id,
+                "positions": HrEmployee.position_id,
+            }[kind]
+            usage = {
+                "employee_count": session.scalar(select(func.count()).select_from(HrEmployee).where(employee_field == item_id)) or 0,
+            }
+            if kind == "offices":
+                usage["department_count"] = session.scalar(
+                    select(func.count()).select_from(HrDepartment).where(HrDepartment.office_id == item_id)
+                ) or 0
+            if kind == "departments":
+                usage["head_count"] = 1 if item.head_id else 0
+            return usage
+
+    def create_catalog_item(self, kind: str, values: dict) -> dict:
+        return self._save_catalog_item(kind, None, values)
+
+    def update_catalog_item(self, kind: str, item_id: str, values: dict) -> dict:
+        return self._save_catalog_item(kind, item_id, values)
+
+    def _save_catalog_item(self, kind: str, item_id: str | None, values: dict) -> dict:
+        model = self._catalog_model(kind)
+        with self.sessions.begin() as session:
+            existing = session.get(model, item_id) if item_id else None
+            if item_id and (existing is None or (kind == "positions" and existing.kind != "position")):
+                raise KeyError(item_id)
+            current_name = (existing.label if kind == "positions" else existing.name) if existing else None
+            name = str(values.get("name", current_name) or "").strip()
+            if not name:
+                raise ValueError("Название не может быть пустым")
+            candidates = session.scalars(select(model)).all()
+            for candidate in candidates:
+                candidate_name = candidate.label if kind == "positions" else candidate.name
+                if candidate.id != item_id and candidate_name.strip().casefold() == name.casefold():
+                    raise FileExistsError("Значение с таким названием уже существует")
+            if kind == "departments":
+                office_id = values.get("office_id", existing.office_id if existing else None)
+                head_id = values.get("head_id", existing.head_id if existing else None)
+                if office_id and session.get(HrOffice, office_id) is None:
+                    raise ValueError("Офис не найден")
+                if head_id:
+                    head = session.get(HrEmployee, head_id)
+                    if head is None or head.archived_at is not None:
+                        raise ValueError("Руководитель не найден среди действующих сотрудников")
+                    if existing and head.department_id != existing.id:
+                        raise ValueError("Руководитель должен состоять в выбранном отделе")
+            old_name = None
+            if existing is None:
+                if kind == "positions":
+                    existing = HrCatalogValue(kind="position", label=name)
+                elif kind == "departments":
+                    existing = HrDepartment(name=name, office_id=values.get("office_id"), head_id=values.get("head_id"))
+                else:
+                    existing = model(name=name)
+                session.add(existing)
+                session.flush()
+            else:
+                old_name = existing.label if kind == "positions" else existing.name
+                if kind == "positions":
+                    existing.label = name
+                else:
+                    existing.name = name
+                if kind == "departments":
+                    if "office_id" in values:
+                        existing.office_id = values["office_id"]
+                    if "head_id" in values:
+                        existing.head_id = values["head_id"]
+            if old_name and old_name != name:
+                if kind == "offices":
+                    for employee in session.scalars(select(HrEmployee).where(HrEmployee.office_id == existing.id)):
+                        employee.office = name
+                elif kind == "departments":
+                    for employee in session.scalars(select(HrEmployee).where(HrEmployee.department_id == existing.id)):
+                        employee.department = name
+                elif kind == "positions":
+                    for employee in session.scalars(select(HrEmployee).where(HrEmployee.position_id == existing.id)):
+                        employee.position = name
+            result = {
+                "id": existing.id,
+                "name": existing.label if kind == "positions" else existing.name,
+            }
+            if kind == "departments":
+                result.update(office_id=existing.office_id, head_id=existing.head_id)
+            return result
+
+    def delete_catalog_item(self, kind: str, item_id: str) -> None:
+        usage = self.catalog_usage(kind, item_id)
+        if any(usage.values()):
+            raise PermissionError(usage)
+        model = self._catalog_model(kind)
+        with self.sessions.begin() as session:
+            item = session.get(model, item_id)
+            if item is None or (kind == "positions" and item.kind != "position"):
+                raise KeyError(item_id)
+            session.delete(item)
 
     def create_import_batch(self, author: str, diagnostics: dict, error_count: int) -> HrImportBatch:
         with self.sessions.begin() as session:

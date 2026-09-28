@@ -1,11 +1,13 @@
 import subprocess
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from ...container import Container
 from ...domain.errors import ServiceError
 from ...admin.backup_runner import BackupRunner
+from ...admin.catalog_service import AdminCatalogService
+from ...hr.schemas import AdminCatalogCreate, AdminCatalogUpdate
 from ..dependencies import current_user, get_container
 
 
@@ -16,6 +18,56 @@ restore_requests: dict[str, dict] = {}
 def require_admin(user: dict) -> None:
     if user["role"] != "admin":
         raise ServiceError("Нет права на администрирование", 403)
+
+
+def catalog_service(c: Container) -> AdminCatalogService:
+    if c.hr is None:
+        raise ServiceError("Кадровая база не подключена", 503)
+    return AdminCatalogService(c.hr.repository)
+
+
+def catalog_error(error: Exception):
+    if isinstance(error, KeyError):
+        raise ServiceError("Значение справочника не найдено", 404)
+    if isinstance(error, FileExistsError):
+        raise ServiceError(str(error), 409)
+    if isinstance(error, PermissionError):
+        raise ServiceError(f"Удаление запрещено: существуют зависимости {error.args[0]}", 409)
+    raise ServiceError(str(error), 400)
+
+
+@router.get("/catalogs")
+def catalogs(user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    require_admin(user)
+    return catalog_service(c).list_all()
+
+
+@router.post("/catalogs/{kind}", status_code=201)
+def create_catalog(kind: str, payload: AdminCatalogCreate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    require_admin(user)
+    try:
+        return catalog_service(c).create(kind, payload.model_dump(exclude_unset=True), user["username"])
+    except (KeyError, FileExistsError, PermissionError, ValueError) as error:
+        catalog_error(error)
+
+
+@router.patch("/catalogs/{kind}/{item_id}")
+def update_catalog(kind: str, item_id: str, payload: AdminCatalogUpdate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    require_admin(user)
+    try:
+        return catalog_service(c).update(kind, item_id, payload.model_dump(exclude_unset=True), user["username"])
+    except (KeyError, FileExistsError, PermissionError, ValueError) as error:
+        catalog_error(error)
+
+
+@router.delete("/catalogs/{kind}/{item_id}", status_code=204)
+def delete_catalog(kind: str, item_id: str, user: dict = Depends(current_user), c: Container = Depends(get_container)):
+    require_admin(user)
+    try:
+        catalog_service(c).delete(kind, item_id, user["username"])
+        return Response(status_code=204)
+    except (KeyError, FileExistsError, PermissionError, ValueError) as error:
+        catalog_error(error)
 
 
 @router.get("/users")

@@ -115,3 +115,15 @@ class HrImportRows(HrSafeModel):
 class HrXlsxApply(HrSafeModel):
     batch_id: str = Field(min_length=1, max_length=36)
     confirm_archive_ids: list[str] = Field(default_factory=list, max_length=5000)
+
+
+class AdminCatalogCreate(HrSafeModel):
+    name: str = Field(min_length=1, max_length=255)
+    office_id: str | None = Field(default=None, max_length=36)
+    head_id: str | None = Field(default=None, max_length=36)
+
+
+class AdminCatalogUpdate(HrSafeModel):
+    name: str | None = Field(default=None, max_length=255)
+    office_id: str | None = Field(default=None, max_length=36)
+    head_id: str | None = Field(default=None, max_length=36)
