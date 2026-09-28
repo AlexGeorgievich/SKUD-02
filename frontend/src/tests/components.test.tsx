@@ -142,6 +142,32 @@ describe('Кадровое рабочее место',()=>{
   expect(within(dialog).getByLabelText('Год рождения').getAttribute('type')).toBe('date');
   expect(within(dialog).getByLabelText('Год окончания').getAttribute('type')).toBe('date');
  });
+ it('показывает поля личных данных в согласованном порядке и вычисляет ФИО без отчества',async()=>{
+  renderHr();await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});
+  const labels=[...dialog.querySelectorAll('.hr-form-panel label > span')].map(item=>item.textContent);
+  expect(labels).toEqual(['Фамилия','Имя','Отчество','ФИО','Пол','Год рождения','Место рождения','Образование','Специальность','Год окончания','Учёная степень','ТГ','Личный телефон','Рабочая почта','Рекомендация','Рекрутер HR','Визитка','Стаж работы','Ссылка на фото','Картинка в почте','Страховка','Комментарии']);
+  const fio=within(dialog).getByLabelText('ФИО') as HTMLInputElement;
+  expect(fio.readOnly).toBe(true);
+  await userEvent.clear(within(dialog).getByLabelText('Фамилия'));await userEvent.type(within(dialog).getByLabelText('Фамилия'),'Иванова');
+  await userEvent.clear(within(dialog).getByLabelText('Имя'));await userEvent.type(within(dialog).getByLabelText('Имя'),'Анна');
+  await userEvent.type(within(dialog).getByLabelText('Отчество'),'Петровна');
+  expect(fio.value).toBe('Иванова Анна');
+ });
+ it('показывает рабочие поля в согласованном порядке и фильтрует отдел по офису',async()=>{
+  const fetchMock=vi.fn(async(url:RequestInfo|URL)=>{
+   if(String(url).includes('/catalogs'))return new Response(JSON.stringify({offices:[{id:'o1',name:'Москва'},{id:'o2',name:'СПб'}],departments:[{id:'d1',name:'Accounting Offline',office_id:'o1'},{id:'d2',name:'Buying',office_id:'o2'}],legal_entities:[{id:'l1',name:'ООО Тест'}],positions:[{id:'p1',kind:'position',label:'Аналитик'}],values:[{id:'g1',kind:'gender',label:'Женский'},{id:'g2',kind:'gender',label:'Мужской'},{id:'w1',kind:'work_format',label:'Гибкий'}]}),{status:200,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({items:[{...employee,family_name:'Беляев',given_name:'Харлампий',office_id:'o1',department_id:'d1'}],count:1}),{status:200,headers:{'Content-Type':'application/json'}});
+  });
+  vi.stubGlobal('fetch',fetchMock);render(<HrPage role="hr" notify={vi.fn()}/>);await userEvent.click(await screen.findByRole('button',{name:'Беляев Харлампий'}));
+  const dialog=screen.getByRole('dialog',{name:/Карточка сотрудника/});await userEvent.click(within(dialog).getByRole('tab',{name:'Рабочие данные'}));
+  const labels=[...dialog.querySelectorAll('.hr-form-panel label > span')].map(item=>item.textContent);
+  expect(labels).toEqual(['Юридическое лицо','Офис','Отдел','Должность','Должность английская','Дата приёма','Испытательный срок','Формат работы','Руководитель отдела','Заместитель','Замещение с','Замещение по','Круг задач и направления']);
+  expect(within(dialog).queryByRole('option',{name:'Buying'})).toBeNull();
+  await userEvent.selectOptions(within(dialog).getByLabelText('Офис'),'o2');
+  expect((within(dialog).getByLabelText('Отдел') as HTMLSelectElement).value).toBe('');
+  expect(within(dialog).getByRole('option',{name:'Buying'})).toBeTruthy();
+ });
  it('редактирует ФИО отдельными полями и открывает кадровые справочники',async()=>{
   const fetchMock=vi.fn(async(url:RequestInfo|URL)=>{
    const path=String(url);
@@ -170,7 +196,9 @@ describe('Кадровое рабочее место',()=>{
   await userEvent.click(screen.getByRole('button',{name:'Добавить сотрудника'}));
   const dialog=screen.getByRole('dialog',{name:'Новая карточка сотрудника'});
   expect(within(dialog).getByRole('tab',{name:'Личные данные'})).toBeTruthy();
-  await userEvent.type(within(dialog).getByLabelText('ФИО'),'Петров Пётр');
+  await userEvent.type(within(dialog).getByLabelText('Фамилия'),'Петров');
+  await userEvent.type(within(dialog).getByLabelText('Имя'),'Пётр');
+  await userEvent.click(within(dialog).getByRole('tab',{name:'Рабочие данные'}));
   await userEvent.selectOptions(within(dialog).getByLabelText('Отдел'),'Accounting Offline');
   await userEvent.click(within(dialog).getByRole('button',{name:'Сохранить'}));
   expect(await screen.findByRole('button',{name:'Петров Пётр'})).toBeTruthy();
