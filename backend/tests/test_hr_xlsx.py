@@ -91,7 +91,11 @@ class HrXlsxTests(unittest.TestCase):
         exported = client.get('/api/hr/xlsx/export')
         self.assertEqual(exported.status_code, 200)
         row = parse_hr_xlsx(exported.content)[0]
-        self.assertEqual(row['name'], 'Новая Елена Петровна')
+        self.assertEqual(row['name'], 'Новая Елена')
+        employee = client.get('/api/hr/employees').json()['items'][0]
+        self.assertIsNotNone(employee['position_id'])
+        positions = client.get('/api/hr/catalogs').json()['positions']
+        self.assertEqual([item['label'] for item in positions], ['Специалист'])
         self.assertEqual(row['telegram'], '@new_test')
         self.assertEqual(row['personal_phone'], '+79991112233')
         self.assertEqual(row['work_email'], 'new@example.com')

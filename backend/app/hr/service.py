@@ -29,8 +29,11 @@ class HrService:
 
     def create_employee(self, values: dict, author: str) -> HrEmployee:
         values = self._normalize_values(values)
+        self._validate_date_ranges(values)
         values = self.repository.validate_card_values(values)
-        name = " ".join(part.strip() for part in (values.get("family_name"), values.get("given_name"), values.get("patronymic")) if part)
+        name = self.display_name(values.get("family_name"), values.get("given_name"))
+        if name:
+            values.pop("plan_name", None)
         name = name or str(values.get("plan_name") or "").strip()
         department = str(values.get("department") or "").strip()
         if not name or not department:
@@ -51,14 +54,18 @@ class HrService:
         current = self.repository.get_employee(employee_id)
         if current is None:
             raise KeyError(employee_id)
+        self._validate_date_ranges({
+            **{key: getattr(current, key) for key in ("hire_date", "probation_end_date", "deputy_from", "deputy_until")},
+            **values,
+        })
         values = self.repository.validate_card_values({
             **{key: getattr(current, key) for key in ("department_id", "office_id", "department", "office")},
             **values,
         }, employee_id)
-        if any(key in values for key in ("family_name", "given_name", "patronymic")):
-            parts = [values.get(key, getattr(current, key)) for key in ("family_name", "given_name", "patronymic")]
-            if parts[0] and parts[1]:
-                values["plan_name"] = " ".join(part.strip() for part in parts if part)
+        family_name = values.get("family_name", current.family_name)
+        given_name = values.get("given_name", current.given_name)
+        if family_name and given_name:
+            values["plan_name"] = self.display_name(family_name, given_name)
         updated = self.repository.update_safe_fields(employee_id, values)
         self.repository.add_audit(author, "update", "employee", employee_id, values, "manual")
         return updated
@@ -86,6 +93,21 @@ class HrService:
             if normalized.get(date_key):
                 normalized[year_key] = normalized[date_key].year
         return normalized
+
+    @staticmethod
+    def display_name(family_name: str | None, given_name: str | None) -> str:
+        return " ".join(part.strip() for part in (family_name, given_name) if part and part.strip())
+
+    @staticmethod
+    def _validate_date_ranges(values: dict) -> None:
+        hire_date = values.get("hire_date")
+        probation_end = values.get("probation_end_date")
+        if hire_date and probation_end and probation_end < hire_date:
+            raise ValueError("Дата окончания испытательного срока не может быть раньше даты приёма")
+        deputy_from = values.get("deputy_from")
+        deputy_until = values.get("deputy_until")
+        if deputy_from and deputy_until and deputy_until < deputy_from:
+            raise ValueError("Дата окончания замещения не может быть раньше даты начала")
 
     def analytics(self) -> dict:
         employees = self.repository.list_employees()

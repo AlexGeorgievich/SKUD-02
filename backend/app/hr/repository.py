@@ -133,6 +133,7 @@ class HrRepository:
                 legal_entity = catalog(HrLegalEntity, values.pop("legal_entity", None))
                 gender = catalog(HrCatalogValue, values.pop("gender_label", None), "gender")
                 work_format = catalog(HrCatalogValue, values.pop("work_format", None), "work_format")
+                position = catalog(HrCatalogValue, values.get("position"), "position")
                 if department:
                     values.update(department_id=department.id, department=department.name)
                 if legal_entity:
@@ -141,6 +142,8 @@ class HrRepository:
                     values.update(gender_id=gender.id, gender=gender.label)
                 if work_format:
                     values["work_format_id"] = work_format.id
+                if position:
+                    values["position_id"] = position.id
                 employee = session.get(HrEmployee, row.get("employee_id")) if row.get("employee_id") else None
                 if employee is None:
                     employee = HrEmployee(
@@ -201,7 +204,11 @@ class HrRepository:
                     objects[field] = item
             if "gender_id" in objects and objects["gender_id"].kind != "gender":
                 raise ValueError("Неверное значение пола")
+            if "gender_id" in objects and objects["gender_id"].label not in {"Мужской", "Женский"}:
+                raise ValueError("Пол должен быть выбран из значений Мужской или Женский")
             if "work_format_id" in objects and objects["work_format_id"].kind != "work_format":
+                raise ValueError("Неверный формат работы")
+            if "work_format_id" in objects and objects["work_format_id"].label not in {"Фиксированный", "Свободный", "Гибкий"}:
                 raise ValueError("Неверный формат работы")
             if "position_id" in objects and objects["position_id"].kind != "position":
                 raise ValueError("Неверная должность")
@@ -224,12 +231,17 @@ class HrRepository:
                 HrEmployee.id != employee_id if employee_id else HrEmployee.id.is_not(None),
             ).limit(1)):
                 raise ValueError("Табельный номер уже назначен другому сотруднику")
-            head_id = checked.get("department_head_id")
-            if head_id:
-                head = session.get(HrEmployee, head_id)
+            for field, message in (
+                ("department_head_id", "Руководитель"),
+                ("deputy_id", "Заместитель"),
+            ):
+                related_id = checked.get(field)
+                if not related_id:
+                    continue
+                head = session.get(HrEmployee, related_id)
                 department_name = checked.get("department")
                 if head is None or head.archived_at is not None or (department_name and head.department != department_name):
-                    raise ValueError("Руководитель должен быть действующим сотрудником выбранного отдела")
+                    raise ValueError(f"{message} должен быть действующим сотрудником выбранного отдела")
         return checked
 
     def is_bootstrap_complete(self) -> bool:

@@ -28,8 +28,9 @@ class KusApiTests(unittest.TestCase):
             office = HrOffice(name="Главный офис")
             company = HrLegalEntity(name="Тестовое юрлицо")
             gender = HrCatalogValue(kind="gender", label="Женский")
-            work_format = HrCatalogValue(kind="work_format", label="Гибрид")
-            session.add_all([office, company, gender, work_format])
+            work_format = HrCatalogValue(kind="work_format", label="Гибкий")
+            position = HrCatalogValue(kind="position", label="Специалист")
+            session.add_all([office, company, gender, work_format, position])
             session.flush()
             department = HrDepartment(name="Buying", office_id=office.id)
             session.add(department)
@@ -37,26 +38,34 @@ class KusApiTests(unittest.TestCase):
             self.ids = {
                 "office_id": office.id, "department_id": department.id,
                 "legal_entity_id": company.id, "gender_id": gender.id,
-                "work_format_id": work_format.id,
+                "work_format_id": work_format.id, "position_id": position.id,
             }
 
     def test_hr_creates_structured_card_using_catalog_ids(self):
         response = self.client.post("/api/hr/employees", json={
             **self.ids,
             "family_name": "Иванова", "given_name": "Анна", "patronymic": "Петровна",
-            "personnel_number": "T-001", "position": "Специалист", "position_en": "Specialist",
+            "plan_name": "Это значение нельзя сохранить", "personnel_number": "T-001", "position_en": "Specialist",
             "telegram": "@anna_test", "personal_phone": "+7 999 123-45-67",
-            "work_email": "anna@example.com", "birth_date": "1990-05-21",
+            "work_email": "anna@example.com", "birth_date": "1990-05-21", "birth_place": "Москва",
         })
 
         self.assertEqual(response.status_code, 201, response.text)
         item = response.json()
-        self.assertEqual(item["plan_name"], "Иванова Анна Петровна")
+        self.assertEqual(item["plan_name"], "Иванова Анна")
         self.assertEqual(item["family_name"], "Иванова")
         self.assertEqual(item["department_id"], self.ids["department_id"])
         self.assertEqual(item["telegram"], "@anna_test")
         self.assertEqual(item["personal_phone"], "+79991234567")
         self.assertEqual(item["birth_date"], "1990-05-21")
+        self.assertEqual(item["birth_place"], "Москва")
+        self.assertEqual(item["position"], "Специалист")
+
+        updated = self.client.patch(f'/api/hr/employees/{item["id"]}', json={
+            'plan_name': 'Подмена ФИО', 'patronymic': 'Сергеевна',
+        })
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()['plan_name'], 'Иванова Анна')
 
     def test_bad_contact_is_rejected_without_creating_card(self):
         response = self.client.post("/api/hr/employees", json={
@@ -107,6 +116,46 @@ class KusApiTests(unittest.TestCase):
             other_id = other.id
         bad_head = self.client.post('/api/hr/employees', json={'department_id': other_id, 'family_name': 'Сидорова', 'given_name': 'Мария', 'department_head_id': first['id']})
         self.assertEqual(bad_head.status_code, 400)
+
+    def test_fixed_catalog_values_and_date_ranges_are_enforced(self):
+        with self.repo.sessions.begin() as session:
+            bad_gender = HrCatalogValue(kind='gender', label='Не указан')
+            bad_format = HrCatalogValue(kind='work_format', label='Гибрид')
+            session.add_all([bad_gender, bad_format])
+            session.flush()
+            bad_gender_id, bad_format_id = bad_gender.id, bad_format.id
+
+        base = {**self.ids, 'family_name': 'Иванова', 'given_name': 'Анна'}
+        self.assertEqual(self.client.post('/api/hr/employees', json={**base, 'gender_id': bad_gender_id}).status_code, 400)
+        self.assertEqual(self.client.post('/api/hr/employees', json={**base, 'work_format_id': bad_format_id}).status_code, 400)
+        self.assertEqual(self.client.post('/api/hr/employees', json={
+            **base, 'hire_date': '2026-09-10', 'probation_end_date': '2026-09-09',
+        }).status_code, 400)
+        self.assertEqual(self.client.post('/api/hr/employees', json={
+            **base, 'deputy_from': '2026-09-10', 'deputy_until': '2026-09-09',
+        }).status_code, 400)
+
+    def test_office_department_and_deputy_must_be_consistent(self):
+        first = self.client.post('/api/hr/employees', json={
+            **self.ids, 'family_name': 'Иванова', 'given_name': 'Анна',
+        }).json()
+        with self.repo.sessions.begin() as session:
+            other_office = HrOffice(name='Другой офис')
+            other_department = HrDepartment(name='Other', office_id=other_office.id)
+            session.add_all([other_office, other_department])
+            session.flush()
+            other_office_id, other_department_id = other_office.id, other_department.id
+
+        mismatch = self.client.post('/api/hr/employees', json={
+            **self.ids, 'office_id': other_office_id,
+            'family_name': 'Петрова', 'given_name': 'Елена',
+        })
+        self.assertEqual(mismatch.status_code, 400)
+        bad_deputy = self.client.post('/api/hr/employees', json={
+            'department_id': other_department_id,
+            'family_name': 'Сидорова', 'given_name': 'Мария', 'deputy_id': first['id'],
+        })
+        self.assertEqual(bad_deputy.status_code, 400)
 
     def test_photo_upload_is_checked_and_requires_authorized_reader(self):
         item = self.client.post('/api/hr/employees', json={**self.ids, 'family_name': 'Иванова', 'given_name': 'Анна'}).json()

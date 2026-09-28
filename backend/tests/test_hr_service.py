@@ -76,6 +76,16 @@ class HrServiceTests(unittest.TestCase):
         self.assertEqual(preview["error_count"], 1)
         self.assertIsNone(self.repository.get_employee("a"))
 
+    def test_legacy_unknown_gender_and_work_format_remain_readable(self):
+        employee = self.repository.create_manual_employee('Старая Запись', 'Legacy', {
+            'gender': 'Другое старое значение', 'work_schedule': 'Старый формат',
+        })
+
+        loaded = self.repository.get_employee(employee.id)
+
+        self.assertEqual(loaded.gender, 'Другое старое значение')
+        self.assertEqual(loaded.work_schedule, 'Старый формат')
+
 
 if __name__ == "__main__":
     unittest.main()

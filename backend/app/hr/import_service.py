@@ -61,9 +61,10 @@ class HrXlsxService:
             if employee_id:
                 seen_ids.add(employee_id)
             family_name, given_name, patronymic = _parts(name)
+            display_name = " ".join(part for part in (family_name, given_name) if part)
             birth_date = _date(source.get("birth_date"), "birth_date", row_errors, row_number) if source.get("birth_date") and len(source["birth_date"]) >= 8 else None
             values = {
-                "plan_name": name, "family_name": family_name, "given_name": given_name, "patronymic": patronymic,
+                "plan_name": display_name, "family_name": family_name, "given_name": given_name, "patronymic": patronymic,
                 "department": department, "position": source.get("position"), "position_en": source.get("position_en"),
                 "legal_entity": source.get("legal_entity"), "work_format": source.get("work_format"),
                 "hire_date": _date(source.get("hire_date"), "hire_date", row_errors, row_number),

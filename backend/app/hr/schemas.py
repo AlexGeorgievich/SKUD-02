@@ -29,6 +29,7 @@ class HrEmployeeUpdate(HrSafeModel):
     legal_entity_id: str | None = Field(default=None, max_length=36)
     gender_id: str | None = Field(default=None, max_length=36)
     work_format_id: str | None = Field(default=None, max_length=36)
+    position_id: str | None = Field(default=None, max_length=36)
     office: str | None = Field(default=None, max_length=255)
     department_status: Literal[
         "Сотрудник", "Руководитель отдела", "Заместитель руководителя", "Временно исполняющий обязанности"
@@ -37,6 +38,7 @@ class HrEmployeeUpdate(HrSafeModel):
     birth_year: int | None = Field(default=None, ge=1900, le=2100)
     birth_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     birth_date: date | None = None
+    birth_place: str | None = Field(default=None, max_length=255)
     education_institution: str | None = Field(default=None, max_length=255)
     education_specialty: str | None = Field(default=None, max_length=255)
     education_graduation_year: int | None = Field(default=None, ge=1900, le=2100)
