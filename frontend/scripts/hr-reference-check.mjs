@@ -52,6 +52,15 @@ await page.getByRole('button',{name:'Добавить сотрудника'}).cl
 const card=page.getByRole('dialog',{name:'Новая карточка сотрудника'});
 await card.waitFor();
 await page.screenshot({path:`${output}/new-employee.png`,fullPage:true});
-console.log(JSON.stringify({registry:registryContract,card:await card.boundingBox(),photo:await card.getByLabel('Фото сотрудника').boundingBox()}));
+const cardBox=await card.boundingBox();
+const photoBox=await card.getByLabel('Фото сотрудника').boundingBox();
+await card.getByRole('button',{name:'Закрыть'}).click();
+await page.getByRole('button',{name:'Администрирование'}).click();
+await page.getByRole('tab',{name:'Справочники'}).click();
+await page.getByRole('heading',{name:'Справочники кадрового учёта'}).waitFor();
+const catalogTitles=['Юридические лица','Офисы','Отделы','Должности'];
+for(const title of catalogTitles)await page.getByRole('heading',{name:title,exact:true}).waitFor();
+await page.screenshot({path:`${output}/admin-catalogs.png`,fullPage:true});
+console.log(JSON.stringify({registry:registryContract,card:cardBox,photo:photoBox,adminCatalogs:catalogTitles}));
 await browser.close();
 process.exit(0);
