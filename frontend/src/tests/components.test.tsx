@@ -115,6 +115,13 @@ describe('Кадровое рабочее место',()=>{
   expect(screen.getByLabelText('Фильтр по отделу')).toBeTruthy();
   expect(screen.getByLabelText('Фильтр по статусу')).toBeTruthy();
   expect(screen.getByText('Найдено: 1')).toBeTruthy();
+  const metrics=document.querySelector('.hr-inline-metrics') as HTMLElement;
+  expect(metrics.textContent).toContain('Офис');expect(metrics.textContent).not.toContain('Группы');
+  const search=screen.getByLabelText('Поиск сотрудников'),add=screen.getByRole('button',{name:'Добавить сотрудника'});
+  expect(search.compareDocumentPosition(add)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.querySelector('.hr-system-actions')?.contains(add)).toBe(false);
+  expect(document.querySelector('.hr-search-row')?.contains(add)).toBe(true);
+  expect(document.querySelector('.hr-department-summary')?.getAttribute('tabindex')).toBe('0');
  });
  it('применяет фильтр отдела по клику на названии отдела в сводке',async()=>{
   const second={...employee,id:'hr-2',plan_name:'Петров Пётр',department:'HR',plan_department:'HR'};
