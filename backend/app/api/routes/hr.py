@@ -110,8 +110,8 @@ def catalogs(user: dict = Depends(current_user), c: Container = Depends(get_cont
 
 @router.post('/departments', status_code=201)
 def create_department(payload: HrDepartmentCreate, user: dict = Depends(current_user), c: Container = Depends(get_container)):
-    if user['role'] not in ('admin', 'hr'):
-        raise ServiceError('Нет права на создание отдела', 403)
+    if user['role'] != 'admin':
+        raise ServiceError('Справочники изменяет только администратор', 403)
     try:
         return serialize(required_service(c).create_department(payload.name, payload.head_id, user['username']))
     except ValueError as error:
